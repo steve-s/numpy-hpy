@@ -1692,7 +1692,13 @@ array_iter(PyArrayObject *arr)
 }
 
 
-NPY_NO_EXPORT PyNumberMethods array_as_number = {
+static PyMappingMethods array_as_mapping = {
+    .mp_length = (lenfunc)array_length,
+    .mp_subscript = (binaryfunc)array_subscript,
+    .mp_ass_subscript = (objobjargproc)array_assign_subscript,
+};
+
+static PyNumberMethods array_as_number = {
     .nb_add = array_add,
     .nb_subtract = array_subtract,
     .nb_multiply = array_multiply,
