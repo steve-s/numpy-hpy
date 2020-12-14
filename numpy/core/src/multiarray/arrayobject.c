@@ -1692,80 +1692,79 @@ array_iter(PyArrayObject *arr)
 }
 
 
-static PyMappingMethods array_as_mapping = {
-    .mp_length = (lenfunc)array_length,
-    .mp_subscript = (binaryfunc)array_subscript,
-    .mp_ass_subscript = (objobjargproc)array_assign_subscript,
+static PyType_Slot PyArray_Type_slots[] = {
+    {Py_mp_length, (lenfunc)array_length},
+    {Py_mp_subscript, (binaryfunc)array_subscript},
+    {Py_mp_ass_subscript, (objobjargproc)array_assign_subscript},
+
+    {Py_nb_add, array_add},
+    {Py_nb_subtract, array_subtract},
+    {Py_nb_multiply, array_multiply},
+    {Py_nb_remainder, array_remainder},
+    {Py_nb_divmod, array_divmod},
+    {Py_nb_power, (ternaryfunc)array_power},
+    {Py_nb_negative, (unaryfunc)array_negative},
+    {Py_nb_positive, (unaryfunc)array_positive},
+    {Py_nb_absolute, (unaryfunc)array_absolute},
+    {Py_nb_bool, (inquiry)_array_nonzero},
+    {Py_nb_invert, (unaryfunc)array_invert},
+    {Py_nb_lshift, array_left_shift},
+    {Py_nb_rshift, array_right_shift},
+    {Py_nb_and, array_bitwise_and},
+    {Py_nb_xor, array_bitwise_xor},
+    {Py_nb_or, array_bitwise_or},
+
+    {Py_nb_int, (unaryfunc)array_int},
+    {Py_nb_float, (unaryfunc)array_float},
+    {Py_nb_index, (unaryfunc)array_index},
+
+    {Py_nb_inplace_add, (binaryfunc)array_inplace_add},
+    {Py_nb_inplace_subtract, (binaryfunc)array_inplace_subtract},
+    {Py_nb_inplace_multiply, (binaryfunc)array_inplace_multiply},
+    {Py_nb_inplace_remainder, (binaryfunc)array_inplace_remainder},
+    {Py_nb_inplace_power, (ternaryfunc)array_inplace_power},
+    {Py_nb_inplace_lshift, (binaryfunc)array_inplace_left_shift},
+    {Py_nb_inplace_rshift, (binaryfunc)array_inplace_right_shift},
+    {Py_nb_inplace_and, (binaryfunc)array_inplace_bitwise_and},
+    {Py_nb_inplace_xor, (binaryfunc)array_inplace_bitwise_xor},
+    {Py_nb_inplace_or, (binaryfunc)array_inplace_bitwise_or},
+
+    {Py_nb_floor_divide, array_floor_divide},
+    {Py_nb_true_divide, array_true_divide},
+    {Py_nb_inplace_floor_divide, (binaryfunc)array_inplace_floor_divide},
+    {Py_nb_inplace_true_divide, (binaryfunc)array_inplace_true_divide},
+
+    {Py_nb_matrix_multiply, (binaryfunc)array_matrix_multiply},
+    {Py_nb_inplace_matrix_multiply, (binaryfunc)array_inplace_matrix_multiply},
+
+    {Py_sq_length, (lenfunc)array_length},
+    {Py_sq_concat, (binaryfunc)array_concat},
+    {Py_sq_item, (ssizeargfunc)array_item},
+    {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
+    {Py_sq_contains, (objobjproc)array_contains},
+
+    {Py_tp_dealloc, (destructor)array_dealloc},
+    {Py_tp_repr, (reprfunc)array_repr},
+    {Py_tp_str, (reprfunc)array_str},
+
+    {Py_tp_richcompare, (richcmpfunc)array_richcompare},
+    {Py_tp_iter, (getiterfunc)array_iter},
+    {Py_tp_methods, array_methods},
+    {Py_tp_getset, array_getsetlist},
+    {Py_tp_new, (newfunc)array_new},
+    {0, NULL},
 };
 
-static PyNumberMethods array_as_number = {
-    .nb_add = array_add,
-    .nb_subtract = array_subtract,
-    .nb_multiply = array_multiply,
-    .nb_remainder = array_remainder,
-    .nb_divmod = array_divmod,
-    .nb_power = (ternaryfunc)array_power,
-    .nb_negative = (unaryfunc)array_negative,
-    .nb_positive = (unaryfunc)array_positive,
-    .nb_absolute = (unaryfunc)array_absolute,
-    .nb_bool = (inquiry)_array_nonzero,
-    .nb_invert = (unaryfunc)array_invert,
-    .nb_lshift = array_left_shift,
-    .nb_rshift = array_right_shift,
-    .nb_and = array_bitwise_and,
-    .nb_xor = array_bitwise_xor,
-    .nb_or = array_bitwise_or,
-
-    .nb_int = (unaryfunc)array_int,
-    .nb_float = (unaryfunc)array_float,
-    .nb_index = (unaryfunc)array_index,
-
-    .nb_inplace_add = (binaryfunc)array_inplace_add,
-    .nb_inplace_subtract = (binaryfunc)array_inplace_subtract,
-    .nb_inplace_multiply = (binaryfunc)array_inplace_multiply,
-    .nb_inplace_remainder = (binaryfunc)array_inplace_remainder,
-    .nb_inplace_power = (ternaryfunc)array_inplace_power,
-    .nb_inplace_lshift = (binaryfunc)array_inplace_left_shift,
-    .nb_inplace_rshift = (binaryfunc)array_inplace_right_shift,
-    .nb_inplace_and = (binaryfunc)array_inplace_bitwise_and,
-    .nb_inplace_xor = (binaryfunc)array_inplace_bitwise_xor,
-    .nb_inplace_or = (binaryfunc)array_inplace_bitwise_or,
-
-    .nb_floor_divide = array_floor_divide,
-    .nb_true_divide = array_true_divide,
-    .nb_inplace_floor_divide = (binaryfunc)array_inplace_floor_divide,
-    .nb_inplace_true_divide = (binaryfunc)array_inplace_true_divide,
-
-    .nb_matrix_multiply = array_matrix_multiply,
-    .nb_inplace_matrix_multiply = (binaryfunc)array_inplace_matrix_multiply,
+NPY_NO_EXPORT PyType_Spec PyArray_Type_spec = {
+    .name = "numpy.ndarray",
+    .basicsize = sizeof(PyArrayObject_fields),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .slots = PyArray_Type_slots,
 };
 
-static PySequenceMethods array_as_sequence = {
-    .sq_length = (lenfunc)array_length,
-    .sq_concat = (binaryfunc)array_concat,
-    .sq_item = (ssizeargfunc)array_item,
-    .sq_ass_item = (ssizeobjargproc)array_assign_item,
-    .sq_contains = (objobjproc)array_contains,
-};
-
-NPY_NO_EXPORT PyTypeObject PyArray_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "numpy.ndarray",
-    .tp_basicsize = sizeof(PyArrayObject_fields),
-    /* methods */
-    .tp_dealloc = (destructor)array_dealloc,
-    .tp_repr = (reprfunc)array_repr,
-    .tp_as_number = &array_as_number,
-    .tp_as_sequence = &array_as_sequence,
-    .tp_as_mapping = &array_as_mapping,
-    .tp_str = (reprfunc)array_str,
-    .tp_as_buffer = &array_as_buffer,
-    .tp_flags =(Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
-
-    .tp_richcompare = (richcmpfunc)array_richcompare,
-    .tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist),
-    .tp_iter = (getiterfunc)array_iter,
-    .tp_methods = array_methods,
-    .tp_getset = array_getsetlist,
-    .tp_new = (newfunc)array_new,
-};
+//NPY_NO_EXPORT PyTypeObject PyArray_Type = {
+//    /* methods */
+//    .tp_as_buffer = &array_as_buffer,
+//
+//    .tp_weaklistoffset = offsetof(PyArrayObject_fields, weakreflist),
+//};

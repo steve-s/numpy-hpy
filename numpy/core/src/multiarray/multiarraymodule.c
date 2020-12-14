@@ -39,6 +39,7 @@ NPY_NO_EXPORT int NPY_NUMUSERTYPES = 0;
 #include "array_coercion.h"
 #include "arrayfunction_override.h"
 #include "arraytypes.h"
+#include "npy_buffer.h"
 #include "arrayobject.h"
 #include "hashdescr.h"
 #include "descriptor.h"
@@ -4770,9 +4771,16 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
         goto err;
     }
 
-    if (PyType_Ready(&PyArray_Type) < 0) {
+    PyObject *array_type = PyType_FromSpec(&PyArray_Type_spec);
+    if (array_type == NULL) {
         goto err;
     }
+    _PyArray_Type_p = (PyTypeObject*)array_type;
+    PyArray_Type.tp_as_buffer = &array_as_buffer;
+
+    /*if (PyType_Ready(&PyArray_Type) < 0) {
+        goto err;
+    }*/
     if (setup_scalartypes(d) < 0) {
         goto err;
     }
@@ -4902,7 +4910,7 @@ PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     ADDCONST(MAY_SHARE_EXACT);
 #undef ADDCONST
 
-    PyDict_SetItemString(d, "ndarray", (PyObject *)&PyArray_Type);
+    PyDict_SetItemString(d, "ndarray", array_type);
     PyDict_SetItemString(d, "flatiter", (PyObject *)&PyArrayIter_Type);
     PyDict_SetItemString(d, "nditer", (PyObject *)&NpyIter_Type);
     PyDict_SetItemString(d, "broadcast",
