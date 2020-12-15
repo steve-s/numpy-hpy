@@ -1,6 +1,8 @@
 #ifndef NUMPY_CORE_SRC_MULTIARRAY_MULTIARRAYMODULE_H_
 #define NUMPY_CORE_SRC_MULTIARRAY_MULTIARRAYMODULE_H_
 
+extern NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p;
+
 NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_array_wrap;
 NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_array_finalize;
 NPY_VISIBILITY_HIDDEN extern PyObject * npy_ma_str_implementation;
