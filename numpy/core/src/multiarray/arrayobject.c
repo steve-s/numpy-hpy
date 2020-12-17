@@ -484,6 +484,14 @@ array_dealloc(PyArrayObject *self)
     /* must match allocation in PyArray_NewFromDescr */
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
     Py_DECREF(fa->descr);
+
+    /*
+     * If tp_dealloc is overridden, the overrider is responsible for
+     * decrefing the type
+     */
+    if (Py_TYPE(self)->tp_dealloc == (destructor)array_dealloc) {
+        Py_DECREF(Py_TYPE(self));
+    }
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
