@@ -18,6 +18,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <structmember.h>
+#include "hpy.h"
 
 #include <numpy/npy_common.h>
 #include "numpy/arrayobject.h"
@@ -4716,6 +4717,7 @@ static struct PyModuleDef moduledef = {
 PyMODINIT_FUNC PyInit__multiarray_umath(void) {
     PyObject *m, *d, *s;
     PyObject *c_api;
+    HPyContext ctx = _HPyGetContext();
 
     /* Create the module and add the functions */
     m = PyModule_Create(&moduledef);
