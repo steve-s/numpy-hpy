@@ -383,6 +383,7 @@ def get_docs_url():
         # to the associated docs easily.
         return "https://numpy.org/doc/{}.{}".format(MAJOR, MINOR)
 
+HPY_ABI = 'cpython' if sys.implementation.name == 'cpython' else 'universal'
 
 def setup_package():
     src_path = os.path.dirname(os.path.abspath(__file__))
@@ -429,6 +430,7 @@ def setup_package():
         # distuils doesn't load hpy.devel unless hpy_ext_modules is present
         # as a keyword
         hpy_ext_modules=[],
+        hpy_abi=HPY_ABI,
         entry_points={
             'console_scripts': f2py_cmds,
             'array_api': ['numpy = numpy.array_api'],
