@@ -1,7 +1,8 @@
 #ifndef NUMPY_CORE_SRC_MULTIARRAY_NPY_BUFFER_H_
 #define NUMPY_CORE_SRC_MULTIARRAY_NPY_BUFFER_H_
+#include "hpy.h"
 
-extern NPY_NO_EXPORT PyBufferProcs array_as_buffer;
+extern NPY_NO_EXPORT HPyDef array_getbuffer;
 
 NPY_NO_EXPORT int
 _buffer_info_free(void *buffer_info, PyObject *obj);
