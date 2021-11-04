@@ -420,10 +420,6 @@ array_finalize(PyArrayObject *self)
 
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
 
-    if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
-        PyErr_WriteUnraisable(NULL);
-    }
-
     if (fa->weakreflist != NULL) {
         // HACK: subtype_dealloc doesn't clear weakrefs, so we do it here,
         // but PyObject_ClearWeakRefs() checks that ob_refcnt == 0 ...
@@ -431,6 +427,10 @@ array_finalize(PyArrayObject *self)
         obj->ob_refcnt--;
         PyObject_ClearWeakRefs(obj);
         obj->ob_refcnt++;
+    }
+
+    if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
+        PyErr_WriteUnraisable(NULL);
     }
     if (fa->base) {
         int retval;
