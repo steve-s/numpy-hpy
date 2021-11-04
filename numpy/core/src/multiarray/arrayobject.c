@@ -400,7 +400,7 @@ WARN_IN_DEALLOC(PyObject* warning, const char * msg) {
     if (PyErr_WarnEx(warning, msg, 1) < 0) {
         PyObject * s;
 
-        s = PyUnicode_FromString("array_dealloc");
+        s = PyUnicode_FromString("array_finalize");
         if (s) {
             PyErr_WriteUnraisable(s);
             Py_DECREF(s);
@@ -412,10 +412,12 @@ WARN_IN_DEALLOC(PyObject* warning, const char * msg) {
 }
 
 /* array object functions */
-
 static void
-array_dealloc(PyArrayObject *self)
+array_finalize(PyArrayObject *self)
 {
+    PyObject *error_type, *error_value, *error_traceback;
+    PyErr_Fetch(&error_type, &error_value, &error_traceback);
+
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
 
     if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
@@ -423,13 +425,18 @@ array_dealloc(PyArrayObject *self)
     }
 
     if (fa->weakreflist != NULL) {
-        PyObject_ClearWeakRefs((PyObject *)self);
+        // HACK: subtype_dealloc doesn't clear weakrefs, so we do it here,
+        // but PyObject_ClearWeakRefs() checks that ob_refcnt == 0 ...
+        PyObject *obj = (PyObject*)self;
+        obj->ob_refcnt--;
+        PyObject_ClearWeakRefs(obj);
+        obj->ob_refcnt++;
     }
     if (fa->base) {
         int retval;
         if (PyArray_FLAGS(self) & NPY_ARRAY_WRITEBACKIFCOPY)
         {
-            char const * msg = "WRITEBACKIFCOPY detected in array_dealloc. "
+            char const * msg = "WRITEBACKIFCOPY detected in array_finalize. "
                 " Required call to PyArray_ResolveWritebackIfCopy or "
                 "PyArray_DiscardWritebackIfCopy is missing.";
             /*
@@ -486,14 +493,7 @@ array_dealloc(PyArrayObject *self)
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
     Py_DECREF(fa->descr);
 
-    /*
-     * If tp_dealloc is overridden, the overrider is responsible for
-     * decrefing the type
-     */
-    if (Py_TYPE(self)->tp_dealloc == (destructor)array_dealloc) {
-        Py_DECREF(Py_TYPE(self));
-    }
-    Py_TYPE(self)->tp_free((PyObject *)self);
+    PyErr_Restore(error_type, error_value, error_traceback);
 }
 
 /*NUMPY_API
@@ -1752,7 +1752,7 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
     {Py_sq_contains, (objobjproc)array_contains},
 
-    {Py_tp_dealloc, (destructor)array_dealloc},
+    {Py_tp_finalize, (destructor)array_finalize},
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
@@ -1772,7 +1772,7 @@ static HPyDef *array_defines[] = {
 NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec = {
     .name = "numpy.ndarray",
     .basicsize = sizeof(PyArrayObject_fields),
-    .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE),
+    .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_FINALIZE),
     .defines = array_defines,
     .legacy_slots = PyArray_Type_slots,
     .legacy = true,
