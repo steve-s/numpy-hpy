@@ -412,21 +412,24 @@ WARN_IN_DEALLOC(PyObject* warning, const char * msg) {
 }
 
 /* array object functions */
+HPyDef_SLOT(array_finalize, array_finalize_impl, HPy_tp_finalize)
 static void
-array_finalize(PyArrayObject *self)
+array_finalize_impl(HPyContext *ctx, HPy h_self)
 {
     PyObject *error_type, *error_value, *error_traceback;
     PyErr_Fetch(&error_type, &error_value, &error_traceback);
 
+    PyArrayObject *self = (PyArrayObject*)HPy_AsPyObject(ctx, h_self);
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
 
     if (fa->weakreflist != NULL) {
         // HACK: subtype_dealloc doesn't clear weakrefs, so we do it here,
         // but PyObject_ClearWeakRefs() checks that ob_refcnt == 0 ...
         PyObject *obj = (PyObject*)self;
-        obj->ob_refcnt--;
+        // 2 refs: h_self and self
+        obj->ob_refcnt -= 2;
         PyObject_ClearWeakRefs(obj);
-        obj->ob_refcnt++;
+        obj->ob_refcnt += 2;
     }
 
     if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
@@ -492,6 +495,8 @@ array_finalize(PyArrayObject *self)
     /* must match allocation in PyArray_NewFromDescr */
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
     Py_DECREF(fa->descr);
+
+    Py_DECREF(self);
 
     PyErr_Restore(error_type, error_value, error_traceback);
 }
@@ -1752,7 +1757,6 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_sq_ass_item, (ssizeobjargproc)array_assign_item},
     {Py_sq_contains, (objobjproc)array_contains},
 
-    {Py_tp_finalize, (destructor)array_finalize},
     {Py_tp_repr, (reprfunc)array_repr},
     {Py_tp_str, (reprfunc)array_str},
 
@@ -1766,6 +1770,7 @@ static PyType_Slot PyArray_Type_slots[] = {
 
 static HPyDef *array_defines[] = {
     &array_getbuffer,
+    &array_finalize,
     NULL,
 };
 
