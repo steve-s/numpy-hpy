@@ -1,6 +1,8 @@
 #ifndef NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_
 #define NUMPY_CORE_SRC_MULTIARRAY_CTORS_H_
 
+#include "hpy.h"
+
 NPY_NO_EXPORT PyObject *
 PyArray_NewFromDescr(
         PyTypeObject *subtype, PyArray_Descr *descr, int nd,
@@ -18,6 +20,14 @@ PyArray_NewFromDescr_int(
         PyTypeObject *subtype, PyArray_Descr *descr, int nd,
         npy_intp const *dims, npy_intp const *strides, void *data,
         int flags, PyObject *obj, PyObject *base, int zeroed,
+        int allow_emptystring);
+
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescr_int(
+        HPyContext *ctx,
+        HPy h_subtype, PyArray_Descr *descr, int nd,
+        npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy h_obj, HPy h_base, int zeroed,
         int allow_emptystring);
 
 NPY_NO_EXPORT PyObject *

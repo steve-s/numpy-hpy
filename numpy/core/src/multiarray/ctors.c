@@ -665,21 +665,48 @@ PyArray_NewFromDescr_int(
         int flags, PyObject *obj, PyObject *base, int zeroed,
         int allow_emptystring)
 {
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_subtype = HPy_FromPyObject(ctx, (PyObject*)subtype);
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPy h_base = HPy_FromPyObject(ctx, base);
+    HPy h_result = HPyArray_NewFromDescr_int(
+            ctx, h_subtype, descr, nd,
+            dims, strides, data,
+            flags, h_obj, h_base, zeroed,
+            allow_emptystring);
+    HPy_Close(ctx, h_base);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_subtype);
+    PyObject *result = HPy_AsPyObject(ctx, h_result);
+    HPy_Close(ctx, h_result);
+    return result;
+}
+
+NPY_NO_EXPORT HPy
+HPyArray_NewFromDescr_int(
+        HPyContext *ctx,
+        HPy h_subtype, PyArray_Descr *descr, int nd,
+        npy_intp const *dims, npy_intp const *strides, void *data,
+        int flags, HPy h_obj, HPy h_base, int zeroed,
+        int allow_emptystring)
+{
     PyArrayObject_fields *fa;
     npy_intp nbytes;
+    PyObject *obj = NULL;
+    PyObject *subtype = NULL;
 
     if (descr == NULL) {
-        return NULL;
+        return HPy_NULL;
     }
     if (nd > NPY_MAXDIMS || nd < 0) {
         PyErr_Format(PyExc_ValueError,
                 "number of dimensions must be within [0, %d]", NPY_MAXDIMS);
         Py_DECREF(descr);
-        return NULL;
+        return HPy_NULL;
     }
 
     if (descr->subarray) {
-        PyObject *ret;
+        HPy ret;
         npy_intp newdims[2*NPY_MAXDIMS];
         npy_intp *newstrides = NULL;
         memcpy(newdims, dims, nd*sizeof(npy_intp));
@@ -689,10 +716,10 @@ PyArray_NewFromDescr_int(
         }
         nd =_update_descr_and_dimensions(&descr, newdims,
                                          newstrides, nd);
-        ret = PyArray_NewFromDescr_int(
-                subtype, descr,
+        ret = HPyArray_NewFromDescr_int(
+                ctx, h_subtype, descr,
                 nd, newdims, newstrides, data,
-                flags, obj, base,
+                flags, h_obj, h_base,
                 zeroed, allow_emptystring);
         return ret;
     }
@@ -703,13 +730,13 @@ PyArray_NewFromDescr_int(
         if (!PyDataType_ISFLEXIBLE(descr)) {
             PyErr_SetString(PyExc_TypeError, "Empty data-type");
             Py_DECREF(descr);
-            return NULL;
+            return HPy_NULL;
         }
         else if (PyDataType_ISSTRING(descr) && !allow_emptystring &&
                  data == NULL) {
             PyArray_DESCR_REPLACE(descr);
             if (descr == NULL) {
-                return NULL;
+                return HPy_NULL;
             }
             if (descr->type_num == NPY_STRING) {
                 nbytes = descr->elsize = 1;
@@ -720,10 +747,10 @@ PyArray_NewFromDescr_int(
         }
     }
 
-    fa = (PyArrayObject_fields *) subtype->tp_alloc(subtype, 0);
-    if (fa == NULL) {
+    HPy result = HPy_New(ctx, h_subtype, &fa);
+    if (HPy_IsNull(result)) {
         Py_DECREF(descr);
-        return NULL;
+        return HPy_NULL;
     }
     fa->_buffer_info = NULL;
     fa->nd = nd;
@@ -868,8 +895,8 @@ PyArray_NewFromDescr_int(
     /* Set the base object. It's important to do it here so that
      * __array_finalize__ below receives it
      */
-    if (base != NULL) {
-        Py_INCREF(base);
+    if (!HPy_IsNull(h_base)) {
+        PyObject *base = HPy_AsPyObject(ctx, h_base);
         if (PyArray_SetBaseObject((PyArrayObject *)fa, base) < 0) {
             goto fail;
         }
@@ -882,7 +909,9 @@ PyArray_NewFromDescr_int(
      * (since that function does nothing), or, for backward compatibility,
      * if it is None.
      */
-    if (subtype != &PyArray_Type) {
+    subtype = HPy_AsPyObject(ctx, h_subtype);
+    obj = HPy_AsPyObject(ctx, h_obj);
+    if ((PyTypeObject*)subtype != &PyArray_Type) {
         PyObject *res, *func;
         static PyObject *ndarray_array_finalize = NULL;
         /* First time, cache ndarray's __array_finalize__ */
@@ -940,12 +969,16 @@ PyArray_NewFromDescr_int(
             }
         }
     }
-    return (PyObject *)fa;
+    Py_DECREF(subtype);
+    Py_XDECREF(obj);
+    return result;
 
  fail:
+    Py_XDECREF(subtype);
+    Py_XDECREF(obj);
     Py_XDECREF(fa->mem_handler);
     Py_DECREF(fa);
-    return NULL;
+    return HPy_NULL;
 }
 
 
