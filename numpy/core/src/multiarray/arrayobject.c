@@ -501,6 +501,13 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
     PyErr_Restore(error_type, error_value, error_traceback);
 }
 
+HPyDef_SLOT(array_traverse, array_traverse_impl, HPy_tp_traverse)
+static int
+array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
+{
+    return 0;
+}
+
 /*NUMPY_API
  * Prints the raw data of the ndarray in a form useful for debugging
  * low-level C issues.
@@ -1771,13 +1778,14 @@ static PyType_Slot PyArray_Type_slots[] = {
 static HPyDef *array_defines[] = {
     &array_getbuffer,
     &array_finalize,
+    &array_traverse,
     NULL,
 };
 
 NPY_NO_EXPORT HPyType_Spec PyArray_Type_spec = {
     .name = "numpy.ndarray",
     .basicsize = sizeof(PyArrayObject_fields),
-    .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_FINALIZE),
+    .flags = (HPy_TPFLAGS_DEFAULT | HPy_TPFLAGS_BASETYPE | HPy_TPFLAGS_HAVE_GC),
     .defines = array_defines,
     .legacy_slots = PyArray_Type_slots,
     .legacy = true,
