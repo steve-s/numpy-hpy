@@ -1566,8 +1566,9 @@ PyArray_CheckStrides(int elsize, int nd, npy_intp numbytes, npy_intp offset,
 }
 
 
-static PyObject *
-array_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
+HPyDef_SLOT(array_new, array_new_impl, HPy_tp_new)
+static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
+                          HPy_ssize_t nargs, HPy h_kwds)
 {
     static char *kwlist[] = {"shape", "dtype", "buffer", "offset", "strides",
                              "order", NULL};
@@ -1580,8 +1581,16 @@ array_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
     NPY_ORDER order = NPY_CORDER;
     int is_f_order = 0;
     PyArrayObject *ret;
+    PyTypeObject* subtype = NULL;
 
     buffer.ptr = NULL;
+
+    HPy h_args = HPyTuple_FromArray(ctx, args_h, nargs);
+    if (HPy_IsNull(h_args)) {
+        goto fail;
+    }
+    PyObject* args = HPy_AsPyObject(ctx, h_args);
+    PyObject* kwds = HPy_AsPyObject(ctx, h_kwds);
     /*
      * Usually called with shape and type but can also be called with buffer,
      * strides, and swapped info For now, let's just use this to create an
@@ -1599,8 +1608,14 @@ array_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
                                      &strides,
                                      &PyArray_OrderConverter,
                                      &order)) {
+        Py_DECREF(args);
+        Py_XDECREF(kwds);
+        HPy_Close(ctx, h_args);
         goto fail;
     }
+    Py_DECREF(args);
+    Py_XDECREF(kwds);
+    HPy_Close(ctx, h_args);
     if (order == NPY_FORTRANORDER) {
         is_f_order = 1;
     }
@@ -1640,6 +1655,7 @@ array_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
         }
     }
 
+    subtype = (PyTypeObject*)HPy_AsPyObject(ctx, h_subtype);
     if (buffer.ptr == NULL) {
         ret = (PyArrayObject *)
             PyArray_NewFromDescr_int(subtype, descr,
@@ -1689,15 +1705,18 @@ array_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds)
         }
     }
 
+    Py_DECREF(subtype);
     npy_free_cache_dim_obj(dims);
     npy_free_cache_dim_obj(strides);
-    return (PyObject *)ret;
+    HPy h_result = HPy_FromPyObject(ctx, (PyObject*)ret);
+    return h_result;
 
  fail:
     Py_XDECREF(descr);
+    Py_XDECREF(subtype);
     npy_free_cache_dim_obj(dims);
     npy_free_cache_dim_obj(strides);
-    return NULL;
+    return HPy_NULL;
 }
 
 
@@ -1771,14 +1790,14 @@ static PyType_Slot PyArray_Type_slots[] = {
     {Py_tp_iter, (getiterfunc)array_iter},
     {Py_tp_methods, array_methods},
     {Py_tp_getset, array_getsetlist},
-    {Py_tp_new, (newfunc)array_new},
     {0, NULL},
 };
 
 static HPyDef *array_defines[] = {
     &array_getbuffer,
-    &array_finalize,
+    &array_new,
     &array_traverse,
+    &array_finalize,
     NULL,
 };
 
