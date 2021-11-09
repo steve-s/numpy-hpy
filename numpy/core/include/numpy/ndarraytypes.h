@@ -6,6 +6,8 @@
 #include "npy_cpu.h"
 #include "utils.h"
 
+#include "hpy.h"
+
 #define NPY_NO_EXPORT NPY_VISIBILITY_HIDDEN
 
 /* Only use thread if configured in config and python supports it */
@@ -752,6 +754,12 @@ typedef struct tagPyArrayObject {
         PyObject_HEAD
 } PyArrayObject;
 #endif
+
+static NPY_INLINE PyArrayObject_fields *
+HPyArray_AsFields(HPyContext *ctx, HPy h)
+{
+    return (PyArrayObject_fields*)HPy_AsStructLegacy(ctx, h);
+}
 
 /*
  * Removed 2020-Nov-25, NumPy 1.20
@@ -1515,6 +1523,13 @@ PyArrayNeighborhoodIter_Next2D(PyArrayNeighborhoodIterObject* iter);
 
 #define PyArray_FORTRAN_IF(m) ((PyArray_CHKFLAGS(m, NPY_ARRAY_F_CONTIGUOUS) ? \
                                NPY_ARRAY_F_CONTIGUOUS : 0))
+
+static NPY_INLINE HPy
+HPyArray_GetDescr(HPyContext *ctx, HPy arr)
+{
+    PyObject *d = (PyObject *)HPyArray_AsFields(ctx, arr)->descr;
+    return HPy_FromPyObject(ctx, d);
+}
 
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
 PyArray_DESCR(PyArrayObject *arr)

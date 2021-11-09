@@ -202,10 +202,12 @@ def get_module(tmp_path):
     except ImportError:
         pass
     # if it does not exist, build and load it
+    from hpy.devel import HPyDevel
+    include_dirs = [np.get_include()] + HPyDevel().get_extra_include_dirs()
     return extbuild.build_and_import_extension('mem_policy',
                                                functions,
                                                prologue=prologue,
-                                               include_dirs=[np.get_include()],
+                                               include_dirs=include_dirs,
                                                build_dir=tmp_path,
                                                more_init=more_init)
 
