@@ -1580,8 +1580,6 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
     npy_longlong offset = 0;
     NPY_ORDER order = NPY_CORDER;
     int is_f_order = 0;
-    PyArrayObject *ret;
-    PyTypeObject* subtype = NULL;
 
     buffer.ptr = NULL;
 
@@ -1655,21 +1653,22 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         }
     }
 
-    subtype = (PyTypeObject*)HPy_AsPyObject(ctx, h_subtype);
+    HPy h_result;
     if (buffer.ptr == NULL) {
-        ret = (PyArrayObject *)
-            PyArray_NewFromDescr_int(subtype, descr,
-                                     (int)dims.len,
-                                     dims.ptr,
-                                     strides.ptr, NULL, is_f_order, NULL, NULL,
-                                     0, 1);
-        if (ret == NULL) {
+        h_result = HPyArray_NewFromDescr_int(
+                ctx, h_subtype, descr,
+                (int)dims.len, dims.ptr, strides.ptr, NULL,
+                is_f_order, HPy_NULL, HPy_NULL,
+                0, 1);
+        if (HPy_IsNull(h_result)) {
             descr = NULL;
             goto fail;
         }
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_HASOBJECT)) {
             /* place Py_None in object positions */
-            PyArray_FillObjectArray(ret, Py_None);
+            PyObject *ret = HPy_AsPyObject(ctx, h_result);
+            PyArray_FillObjectArray((PyArrayObject*)ret, Py_None);
+            Py_DECREF(ret);
             if (PyErr_Occurred()) {
                 descr = NULL;
                 goto fail;
@@ -1694,26 +1693,24 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
         if (is_f_order) {
             buffer.flags |= NPY_ARRAY_F_CONTIGUOUS;
         }
-        ret = (PyArrayObject *)PyArray_NewFromDescr_int(
-                subtype, descr,
+        HPy h_base = HPy_FromPyObject(ctx, buffer.base);
+        h_result = HPyArray_NewFromDescr_int(
+                ctx, h_subtype, descr,
                 dims.len, dims.ptr, strides.ptr, offset + (char *)buffer.ptr,
-                buffer.flags, NULL, buffer.base,
+                buffer.flags, HPy_NULL, h_base,
                 0, 1);
-        if (ret == NULL) {
+        if (HPy_IsNull(h_result)) {
             descr = NULL;
             goto fail;
         }
     }
 
-    Py_DECREF(subtype);
     npy_free_cache_dim_obj(dims);
     npy_free_cache_dim_obj(strides);
-    HPy h_result = HPy_FromPyObject(ctx, (PyObject*)ret);
     return h_result;
 
  fail:
     Py_XDECREF(descr);
-    Py_XDECREF(subtype);
     npy_free_cache_dim_obj(dims);
     npy_free_cache_dim_obj(strides);
     return HPy_NULL;
