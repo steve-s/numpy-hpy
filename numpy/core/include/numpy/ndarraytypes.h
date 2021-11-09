@@ -1516,6 +1516,12 @@ PyArrayNeighborhoodIter_Next2D(PyArrayNeighborhoodIterObject* iter);
 #define PyArray_FORTRAN_IF(m) ((PyArray_CHKFLAGS(m, NPY_ARRAY_F_CONTIGUOUS) ? \
                                NPY_ARRAY_F_CONTIGUOUS : 0))
 
+static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
+PyArray_DESCR(PyArrayObject *arr)
+{
+    return ((PyArrayObject_fields *)arr)->descr;
+}
+
 #if (defined(NPY_NO_DEPRECATED_API) && (NPY_1_7_API_VERSION <= NPY_NO_DEPRECATED_API))
 /*
  * Changing access macros into functions, to allow for future hiding
@@ -1572,12 +1578,6 @@ PyArray_BASE(PyArrayObject *arr)
     return ((PyArrayObject_fields *)arr)->base;
 }
 
-static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
-PyArray_DESCR(PyArrayObject *arr)
-{
-    return ((PyArrayObject_fields *)arr)->descr;
-}
-
 static NPY_INLINE int
 PyArray_FLAGS(const PyArrayObject *arr)
 {
@@ -1631,7 +1631,6 @@ PyArray_SETITEM(PyArrayObject *arr, char *itemptr, PyObject *v)
 #define PyArray_DIM(obj,n) (PyArray_DIMS(obj)[n])
 #define PyArray_STRIDE(obj,n) (PyArray_STRIDES(obj)[n])
 #define PyArray_BASE(obj) (((PyArrayObject_fields *)(obj))->base)
-#define PyArray_DESCR(obj) (((PyArrayObject_fields *)(obj))->descr)
 #define PyArray_FLAGS(obj) (((PyArrayObject_fields *)(obj))->flags)
 #define PyArray_CHKFLAGS(m, FLAGS) \
         ((((PyArrayObject_fields *)(m))->flags & (FLAGS)) == (FLAGS))
