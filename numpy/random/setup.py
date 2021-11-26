@@ -11,6 +11,7 @@ is_msvc = (platform.platform().startswith('Windows') and
 
 def configuration(parent_package='', top_path=None):
     from numpy.distutils.misc_util import Configuration, get_mathlibs
+    from numpy.distutils.misc_util import get_hpy_src
     config = Configuration('random', parent_package, top_path)
 
     def generate_libraries(ext, build_dir):
@@ -124,7 +125,7 @@ def configuration(parent_package='', top_path=None):
     for gen in ['_common', 'bit_generator']:
         # gen.pyx
         config.add_extension(gen,
-                             sources=[f'{gen}.c'],
+                             sources=[f'{gen}.c'] + get_hpy_src(),
                              libraries=EXTRA_LIBRARIES,
                              extra_compile_args=EXTRA_COMPILE_ARGS,
                              extra_link_args=EXTRA_LINK_ARGS,
@@ -136,7 +137,7 @@ def configuration(parent_package='', top_path=None):
     for gen in ['_generator', '_bounded_integers']:
         # gen.pyx, src/distributions/distributions.c
         config.add_extension(gen,
-                             sources=[f'{gen}.c'],
+                             sources=[f'{gen}.c'] + get_hpy_src(),
                              libraries=EXTRA_LIBRARIES + ['npymath'],
                              extra_compile_args=EXTRA_COMPILE_ARGS,
                              include_dirs=['.', 'src'],
@@ -150,7 +151,7 @@ def configuration(parent_package='', top_path=None):
                          sources=['mtrand.c',
                                   'src/legacy/legacy-distributions.c',
                                   'src/distributions/distributions.c',
-                                 ],
+                                 ] + get_hpy_src(),
                          include_dirs=['.', 'src', 'src/legacy'],
                          libraries=mtrand_libs,
                          extra_compile_args=EXTRA_COMPILE_ARGS,

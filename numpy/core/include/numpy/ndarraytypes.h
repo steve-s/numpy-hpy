@@ -1534,7 +1534,17 @@ HPyArray_GetDescr(HPyContext *ctx, HPy arr)
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
 PyArray_DESCR(PyArrayObject *arr)
 {
-    return ((PyArrayObject_fields *)arr)->descr;
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+    HPy h_descr = HPyArray_GetDescr(ctx, h_arr);
+    HPy_Close(ctx, h_arr);
+    if (HPy_IsNull(h_descr)) {
+        return NULL;
+    }
+    PyObject *descr = HPy_AsPyObject(ctx, h_descr);
+    HPy_Close(ctx, h_descr);
+    Py_DECREF(descr);  // borrowed ref
+    return (PyArray_Descr *)descr;
 }
 
 #if (defined(NPY_NO_DEPRECATED_API) && (NPY_1_7_API_VERSION <= NPY_NO_DEPRECATED_API))

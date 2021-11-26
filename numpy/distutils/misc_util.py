@@ -2505,7 +2505,6 @@ def sanitize_cxx_flags(cxxflags):
     '''
     return [flag for flag in cxxflags if flag not in _cxx_ignore_flags]
 
-
 def exec_mod_from_location(modname, modfile):
     '''
     Use importlib machinery to import a module `modname` from the file
@@ -2517,3 +2516,11 @@ def exec_mod_from_location(modname, modfile):
     spec.loader.exec_module(foo)
     return foo
 
+def get_hpy_includes():
+    from hpy.devel import HPyDevel
+    return HPyDevel().get_extra_include_dirs()
+
+def get_hpy_src():
+    from hpy.devel import HPyDevel
+    hpy_info = HPyDevel()
+    return hpy_info.get_extra_sources() + hpy_info.get_ctx_sources()
