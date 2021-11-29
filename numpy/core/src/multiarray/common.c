@@ -341,8 +341,10 @@ dummy_array_new(PyArray_Descr *descr, npy_intp flags, PyObject *base)
     if (fa == NULL) {
         return NULL;
     }
-    Py_XINCREF(descr);
-    fa->descr = descr;
+    fa->f_descr = HPyField_NULL;
+    if (descr != NULL) {
+        _set_descr((PyArrayObject *)fa, descr);
+    }
     fa->flags = flags;
     Py_XINCREF(base);
     fa->base = base;

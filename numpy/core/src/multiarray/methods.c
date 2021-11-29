@@ -1367,13 +1367,15 @@ array_sort(PyArrayObject *self,
         }
         Py_DECREF(newd->names);
         newd->names = new_name;
-        ((PyArrayObject_fields *)self)->descr = newd;
+        Py_INCREF(saved);
+        _set_descr(self, newd);
+        Py_DECREF(newd);
     }
 
     val = PyArray_Sort(self, axis, sortkind);
     if (order != NULL) {
-        Py_XDECREF(PyArray_DESCR(self));
-        ((PyArrayObject_fields *)self)->descr = saved;
+        _set_descr(self, saved);
+        Py_DECREF(saved);
     }
     if (val < 0) {
         return NULL;
@@ -1431,9 +1433,11 @@ array_partition(PyArrayObject *self,
             Py_DECREF(new_name);
             return NULL;
         }
+        Py_INCREF(saved);
         Py_DECREF(newd->names);
         newd->names = new_name;
-        ((PyArrayObject_fields *)self)->descr = newd;
+        _set_descr(self, newd);
+        Py_DECREF(newd);
     }
 
     ktharray = (PyArrayObject *)PyArray_FromAny(kthobj, NULL, 0, 1,
@@ -1445,8 +1449,8 @@ array_partition(PyArrayObject *self,
     Py_DECREF(ktharray);
 
     if (order != NULL) {
-        Py_XDECREF(PyArray_DESCR(self));
-        ((PyArrayObject_fields *)self)->descr = saved;
+        _set_descr(self, saved);
+        Py_DECREF(saved);
     }
     if (val < 0) {
         return NULL;
@@ -1498,15 +1502,17 @@ array_argsort(PyArrayObject *self,
             Py_DECREF(new_name);
             return NULL;
         }
+        Py_INCREF(saved);
         Py_DECREF(newd->names);
         newd->names = new_name;
-        ((PyArrayObject_fields *)self)->descr = newd;
+        _set_descr(self, newd);
+        Py_DECREF(newd);
     }
 
     res = PyArray_ArgSort(self, axis, sortkind);
     if (order != NULL) {
-        Py_XDECREF(PyArray_DESCR(self));
-        ((PyArrayObject_fields *)self)->descr = saved;
+        _set_descr(self, saved);
+        Py_DECREF(saved);
     }
     return PyArray_Return((PyArrayObject *)res);
 }
@@ -1559,9 +1565,11 @@ array_argpartition(PyArrayObject *self,
             Py_DECREF(new_name);
             return NULL;
         }
+        Py_INCREF(saved);
         Py_DECREF(newd->names);
         newd->names = new_name;
-        ((PyArrayObject_fields *)self)->descr = newd;
+        _set_descr(self, newd);
+        Py_DECREF(newd);
     }
 
     ktharray = (PyArrayObject *)PyArray_FromAny(kthobj, NULL, 0, 1,
@@ -1573,8 +1581,8 @@ array_argpartition(PyArrayObject *self,
     Py_DECREF(ktharray);
 
     if (order != NULL) {
-        Py_XDECREF(PyArray_DESCR(self));
-        ((PyArrayObject_fields *)self)->descr = saved;
+        _set_descr(self, saved);
+        Py_DECREF(saved);
     }
     return PyArray_Return((PyArrayObject *)res);
 }
@@ -2019,14 +2027,12 @@ array_setstate(PyArrayObject *self, PyObject *args)
     }
 
     /*
-     * Reassigning fa->descr messes with the reallocation strategy,
+     * Reassigning descr messes with the reallocation strategy,
      * since fa could be a 0-d or scalar, and then
      * PyDataMem_UserFREE will be confused
      */
     size_t n_tofree = PyArray_NBYTES_ALLOCATED(self);
-    Py_XDECREF(PyArray_DESCR(self));
-    fa->descr = typecode;
-    Py_INCREF(typecode);
+    _set_descr(self, typecode);
     nd = PyArray_IntpFromSequence(shape, dimensions, NPY_MAXDIMS);
     if (nd < 0) {
         return NULL;
@@ -2182,27 +2188,29 @@ array_setstate(PyArrayObject *self, PyObject *args)
                                         PyArray_DESCR(self)->elsize,
                                         datastr, PyArray_DESCR(self)->elsize,
                                         numels, 1, self);
+                PyArray_Descr *new_descr;
                 if (!(PyArray_ISEXTENDED(self) ||
                       PyArray_DESCR(self)->metadata ||
                       PyArray_DESCR(self)->c_metadata)) {
-                    fa->descr = PyArray_DescrFromType(
+                    new_descr = PyArray_DescrFromType(
                                     PyArray_DESCR(self)->type_num);
                 }
                 else {
-                    fa->descr = PyArray_DescrNew(typecode);
-                    if (fa->descr == NULL) {
+                    new_descr = PyArray_DescrNew(typecode);
+                    if (new_descr == NULL) {
                         Py_CLEAR(fa->mem_handler);
                         Py_DECREF(rawdata);
                         return NULL;
                     }
-                    if (PyArray_DESCR(self)->byteorder == NPY_BIG) {
-                        PyArray_DESCR(self)->byteorder = NPY_LITTLE;
+                    if (new_descr->byteorder == NPY_BIG) {
+                        new_descr->byteorder = NPY_LITTLE;
                     }
-                    else if (PyArray_DESCR(self)->byteorder == NPY_LITTLE) {
-                        PyArray_DESCR(self)->byteorder = NPY_BIG;
+                    else if (new_descr->byteorder == NPY_LITTLE) {
+                        new_descr->byteorder = NPY_BIG;
                     }
                 }
-                Py_DECREF(typecode);
+                _set_descr(self, new_descr);
+                Py_DECREF(new_descr);
             }
             else {
                 memcpy(PyArray_DATA(self), datastr, num);

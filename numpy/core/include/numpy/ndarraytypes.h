@@ -726,7 +726,8 @@ typedef struct tagPyArrayObject_fields {
      */
     PyObject *base;
     /* Pointer to type structure */
-    PyArray_Descr *descr;
+    //PyArray_Descr *descr;
+    HPyField f_descr;
     /* Flags describing array -- see below */
     int flags;
     /* For weak references */
@@ -1527,12 +1528,11 @@ PyArrayNeighborhoodIter_Next2D(PyArrayNeighborhoodIterObject* iter);
 static NPY_INLINE HPy
 HPyArray_GetDescr(HPyContext *ctx, HPy arr)
 {
-    PyObject *d = (PyObject *)HPyArray_AsFields(ctx, arr)->descr;
-    return HPy_FromPyObject(ctx, d);
+    return HPyField_Load(ctx, arr, HPyArray_AsFields(ctx, arr)->f_descr);
 }
 
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
-PyArray_DESCR(PyArrayObject *arr)
+PyArray_DESCR(const PyArrayObject *arr)
 {
     HPyContext *ctx = _HPyGetContext();
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
@@ -1612,13 +1612,13 @@ PyArray_FLAGS(const PyArrayObject *arr)
 static NPY_INLINE npy_intp
 PyArray_ITEMSIZE(const PyArrayObject *arr)
 {
-    return ((PyArrayObject_fields *)arr)->descr->elsize;
+    return PyArray_DESCR(arr)->elsize;
 }
 
 static NPY_INLINE int
 PyArray_TYPE(const PyArrayObject *arr)
 {
-    return ((PyArrayObject_fields *)arr)->descr->type_num;
+    return PyArray_DESCR(arr)->type_num;
 }
 
 static NPY_INLINE int
@@ -1630,8 +1630,8 @@ PyArray_CHKFLAGS(const PyArrayObject *arr, int flags)
 static NPY_INLINE PyObject *
 PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
 {
-    return ((PyArrayObject_fields *)arr)->descr->f->getitem(
-                                        (void *)itemptr, (PyArrayObject *)arr);
+    return PyArray_DESCR(arr)->f->getitem(
+            (void *)itemptr, (PyArrayObject *)arr);
 }
 
 /*
@@ -1642,7 +1642,7 @@ PyArray_GETITEM(const PyArrayObject *arr, const char *itemptr)
 static NPY_INLINE int
 PyArray_SETITEM(PyArrayObject *arr, char *itemptr, PyObject *v)
 {
-    return ((PyArrayObject_fields *)arr)->descr->f->setitem(v, itemptr, arr);
+    return PyArray_DESCR(arr)->f->setitem(v, itemptr, arr);
 }
 
 #else
@@ -1676,7 +1676,7 @@ PyArray_SETITEM(PyArrayObject *arr, char *itemptr, PyObject *v)
 static NPY_INLINE PyArray_Descr *
 PyArray_DTYPE(PyArrayObject *arr)
 {
-    return ((PyArrayObject_fields *)arr)->descr;
+    return PyArray_DESCR(arr);
 }
 
 static NPY_INLINE npy_intp *

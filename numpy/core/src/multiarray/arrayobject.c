@@ -464,7 +464,8 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
 
     if ((fa->flags & NPY_ARRAY_OWNDATA) && fa->data) {
         /* Free internal references if an Object array */
-        if (PyDataType_FLAGCHK(fa->descr, NPY_ITEM_REFCOUNT)) {
+        PyArray_Descr *descr = PyArray_DESCR(self);
+        if (PyDataType_FLAGCHK(descr, NPY_ITEM_REFCOUNT)) {
             PyArray_XDECREF(self);
         }
         if (fa->mem_handler == NULL) {
@@ -494,7 +495,6 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
 
     /* must match allocation in PyArray_NewFromDescr */
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
-    Py_DECREF(fa->descr);
 
     Py_DECREF(self);
 
@@ -505,6 +505,9 @@ HPyDef_SLOT(array_traverse, array_traverse_impl, HPy_tp_traverse)
 static int
 array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
 {
+    PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
+    if (fa->f_descr._i)  // XXX: temp workaround
+        HPy_VISIT(&fa->f_descr);
     return 0;
 }
 
@@ -534,7 +537,7 @@ PyArray_DebugPrint(PyArrayObject *obj)
     printf("\n");
 
     printf(" dtype  : ");
-    PyObject_Print((PyObject *)fobj->descr, stdout, 0);
+    PyObject_Print(PyArray_DESCR(obj), stdout, 0);
     printf("\n");
     printf(" data   : %p\n", fobj->data);
     printf(" strides:");

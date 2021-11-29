@@ -1635,9 +1635,7 @@ _array_fromobject_generic(
                 if (oldtype == type || ret == NULL) {
                     goto finish;
                 }
-                Py_INCREF(oldtype);
-                Py_DECREF(PyArray_DESCR(ret));
-                ((PyArrayObject_fields *)ret)->descr = oldtype;
+                _set_descr(ret, oldtype);
                 goto finish;
             }
         }

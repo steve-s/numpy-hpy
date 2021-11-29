@@ -86,10 +86,20 @@ get_tmp_array(PyArrayObject *orig);
 static NPY_INLINE void
 _set_descr(PyArrayObject *tmp_array, PyArray_Descr *new_descr)
 {
-    Py_XINCREF(new_descr);
-    PyArray_Descr *old = PyArray_DESCR(tmp_array);
-    ((PyArrayObject_fields *)tmp_array)->descr = new_descr;
-    Py_XDECREF(old);
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_new;
+    if (new_descr == NULL) {
+        h_new = HPy_NULL;
+    }
+    else {
+        h_new = HPy_FromPyObject(ctx, (PyObject *)new_descr);
+    }
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)tmp_array);
+    HPyField_Store(ctx, h_arr, &((PyArrayObject_fields *)tmp_array)->f_descr, h_new);
+    HPy_Close(ctx, h_arr);
+    if (!HPy_IsNull(h_new)) {
+        HPy_Close(ctx, h_new);
+    }
 }
 
 /**

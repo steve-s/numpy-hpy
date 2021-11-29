@@ -364,7 +364,8 @@ PyArray_FromScalar(PyObject *scalar, PyArray_Descr *outcode)
              * to anyone yet, let's fix the dtype to be what was requested,
              * even if it is equivalent to what was passed in.
              */
-            Py_SETREF(((PyArrayObject_fields *)r)->descr, outcode);
+            _set_descr(r, outcode);
+            Py_DECREF(outcode);
 
             return (PyObject *)r;
         }

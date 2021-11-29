@@ -580,8 +580,8 @@ array_descr_set(PyArrayObject *self, PyObject *arg, void *NPY_UNUSED(ignored))
         Py_DECREF(temp);
     }
 
-    Py_DECREF(PyArray_DESCR(self));
-    ((PyArrayObject_fields *)self)->descr = newtype;
+    _set_descr(self, newtype);
+    Py_DECREF(newtype);
     PyArray_UpdateFlags(self, NPY_ARRAY_UPDATE_ALL);
     return 0;
 

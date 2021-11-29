@@ -771,7 +771,9 @@ HPyArray_NewFromDescr_int(
     else {
         fa->flags = (flags & ~NPY_ARRAY_WRITEBACKIFCOPY);
     }
-    fa->descr = descr;
+    HPy h_descr = HPy_FromPyObject(ctx, (PyObject*)descr);
+    HPyField_Store(ctx, result, &fa->f_descr, h_descr);
+    HPy_Close(ctx, h_descr);
     fa->base = (PyObject *)NULL;
     fa->weakreflist = (PyObject *)NULL;
 
@@ -969,11 +971,13 @@ HPyArray_NewFromDescr_int(
             }
         }
     }
+    Py_DECREF(descr);
     Py_DECREF(subtype);
     Py_XDECREF(obj);
     return result;
 
  fail:
+    Py_DECREF(descr);
     Py_XDECREF(subtype);
     Py_XDECREF(obj);
     Py_XDECREF(fa->mem_handler);
@@ -1893,12 +1897,12 @@ PyArray_FromAny(PyObject *op, PyArray_Descr *newtype, int min_depth,
     int out_ndim = PyArray_NDIM(ret);
     PyArray_Descr *out_descr = PyArray_DESCR(ret);
     ((PyArrayObject_fields *)ret)->nd = ndim;
-    ((PyArrayObject_fields *)ret)->descr = dtype;
+    _set_descr(ret, dtype);
 
     int success = PyArray_AssignFromCache(ret, cache);
 
     ((PyArrayObject_fields *)ret)->nd = out_ndim;
-    ((PyArrayObject_fields *)ret)->descr = out_descr;
+    _set_descr(ret, out_descr);
     Py_DECREF(dtype);
     if (success < 0) {
         Py_DECREF(ret);
@@ -3414,9 +3418,8 @@ PyArray_ArangeObj(PyObject *start, PyObject *stop, PyObject *step, PyArray_Descr
         PyObject *new;
         new = PyArray_Byteswap(range, 1);
         Py_DECREF(new);
-        Py_DECREF(PyArray_DESCR(range));
-        /* steals the reference */
-        ((PyArrayObject_fields *)range)->descr = dtype;
+        _set_descr(range, dtype);
+        Py_DECREF(dtype);
     }
     Py_DECREF(start);
     Py_DECREF(step);
