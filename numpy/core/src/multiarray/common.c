@@ -346,8 +346,14 @@ dummy_array_new(PyArray_Descr *descr, npy_intp flags, PyObject *base)
         _set_descr((PyArrayObject *)fa, descr);
     }
     fa->flags = flags;
-    Py_XINCREF(base);
-    fa->base = base;
+    if (base != NULL) {
+        HPyContext *ctx = _HPyGetContext();
+        HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)fa);
+        HPy h_base = HPy_FromPyObject(ctx, base);
+        HPyArray_SetBase(ctx, h_arr, h_base);
+        HPy_Close(ctx, h_base);
+        HPy_Close(ctx, h_arr);
+    }
     return (PyArrayObject *)fa;
 }
 

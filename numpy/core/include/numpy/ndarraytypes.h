@@ -724,7 +724,7 @@ typedef struct tagPyArrayObject_fields {
      * array to-be-updated upon calling
      * PyArray_ResolveWritebackIfCopy
      */
-    PyObject *base;
+    HPyField f_base;
     /* Pointer to type structure */
     //PyArray_Descr *descr;
     HPyField f_descr;
@@ -1547,6 +1547,60 @@ PyArray_DESCR(const PyArrayObject *arr)
     return (PyArray_Descr *)descr;
 }
 
+static NPY_INLINE HPy
+HPyArray_GetBase(HPyContext *ctx, HPy arr)
+{
+    HPyField f_base = HPyArray_AsFields(ctx, arr)->f_base;
+    if (f_base._i == 0) {
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, arr, HPyArray_AsFields(ctx, arr)->f_base);
+}
+
+static NPY_INLINE void
+HPyArray_SetBase(HPyContext *ctx, HPy arr, HPy new_base)
+{
+    HPyField_Store(ctx, arr, &HPyArray_AsFields(ctx, arr)->f_base, new_base);
+}
+
+static NPY_INLINE NPY_RETURNS_BORROWED_REF PyObject *
+PyArray_BASE(const PyArrayObject *arr)
+{
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+    HPy h_base = HPyArray_GetBase(ctx, h_arr);
+    HPy_Close(ctx, h_arr);
+    if (HPy_IsNull(h_base)) {
+        return NULL;
+    }
+    PyObject *base = HPy_AsPyObject(ctx, h_base);
+    HPy_Close(ctx, h_base);
+    Py_DECREF(base);  // borrowed ref
+    return base;
+}
+
+static NPY_INLINE int
+HPyArray_FLAGS(HPyContext *ctx, HPy arr)
+{
+    return HPyArray_AsFields(ctx, arr)->flags;
+}
+
+static NPY_INLINE void
+HPyArray_ENABLEFLAGS(HPyContext *ctx, HPy arr, int flags)
+{
+    HPyArray_AsFields(ctx, arr)->flags |= flags;
+}
+
+/*
+ * Clears the specified array flags. Does no checking,
+ * assumes you know what you're doing.
+ */
+static NPY_INLINE void
+HPyArray_CLEARFLAGS(HPyContext *ctx, HPy arr, int flags)
+{
+    HPyArray_AsFields(ctx, arr)->flags &= ~flags;
+}
+
 #if (defined(NPY_NO_DEPRECATED_API) && (NPY_1_7_API_VERSION <= NPY_NO_DEPRECATED_API))
 /*
  * Changing access macros into functions, to allow for future hiding
@@ -1597,11 +1651,6 @@ PyArray_STRIDE(const PyArrayObject *arr, int istride)
     return ((PyArrayObject_fields *)arr)->strides[istride];
 }
 
-static NPY_INLINE NPY_RETURNS_BORROWED_REF PyObject *
-PyArray_BASE(PyArrayObject *arr)
-{
-    return ((PyArrayObject_fields *)arr)->base;
-}
 
 static NPY_INLINE int
 PyArray_FLAGS(const PyArrayObject *arr)
@@ -1655,7 +1704,6 @@ PyArray_SETITEM(PyArrayObject *arr, char *itemptr, PyObject *v)
 #define PyArray_STRIDES(obj) (((PyArrayObject_fields *)(obj))->strides)
 #define PyArray_DIM(obj,n) (PyArray_DIMS(obj)[n])
 #define PyArray_STRIDE(obj,n) (PyArray_STRIDES(obj)[n])
-#define PyArray_BASE(obj) (((PyArrayObject_fields *)(obj))->base)
 #define PyArray_FLAGS(obj) (((PyArrayObject_fields *)(obj))->flags)
 #define PyArray_CHKFLAGS(m, FLAGS) \
         ((((PyArrayObject_fields *)(m))->flags & (FLAGS)) == (FLAGS))

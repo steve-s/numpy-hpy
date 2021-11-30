@@ -1995,6 +1995,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
     int overflowed;
 
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
+    HPyContext *ctx = _HPyGetContext();
 
     /* This will free any memory associated with a and
        use the string in setstate as the (writeable) memory.
@@ -2131,8 +2132,9 @@ array_setstate(PyArrayObject *self, PyObject *args)
         PyDataMem_UserFREE(PyArray_DATA(self), n_tofree, handler);
         PyArray_CLEARFLAGS(self, NPY_ARRAY_OWNDATA);
     }
-    Py_XDECREF(PyArray_BASE(self));
-    fa->base = NULL;
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
+    HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+    HPy_Close(ctx, h_arr);
 
     PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
 
@@ -2216,7 +2218,6 @@ array_setstate(PyArrayObject *self, PyObject *args)
                 memcpy(PyArray_DATA(self), datastr, num);
             }
             PyArray_ENABLEFLAGS(self, NPY_ARRAY_OWNDATA);
-            fa->base = NULL;
             Py_DECREF(rawdata);
         }
         else {
@@ -2248,7 +2249,6 @@ array_setstate(PyArrayObject *self, PyObject *args)
             memset(PyArray_DATA(self), 0, PyArray_NBYTES(self));
         }
         PyArray_ENABLEFLAGS(self, NPY_ARRAY_OWNDATA);
-        fa->base = NULL;
         if (_setlist_pkl(self, rawdata) < 0) {
             return NULL;
         }
@@ -2690,8 +2690,10 @@ array_setflags(PyArrayObject *self, PyObject *args, PyObject *kwds)
         }
         else {
             PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
-            Py_XDECREF(fa->base);
-            fa->base = NULL;
+            HPyContext *ctx = _HPyGetContext();
+            HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
+            HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+            HPy_Close(ctx, h_arr);
         }
     }
 

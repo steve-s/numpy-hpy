@@ -401,8 +401,10 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
                                                 NPY_ARRAY_WRITEABLE);
             PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
         }
-        Py_DECREF(PyArray_BASE(self));
-        ((PyArrayObject_fields *)self)->base = NULL;
+        HPyContext *ctx = _HPyGetContext();
+        HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
+        HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+        HPy_Close(ctx, h_arr);
     }
     Py_INCREF(op);
     if (PyArray_SetBaseObject(self, op) < 0) {

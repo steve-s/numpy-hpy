@@ -131,10 +131,16 @@ PyArray_SetWritebackIfCopyBase(PyArrayObject *arr, PyArrayObject *base)
      * Unlike PyArray_SetBaseObject, we do not compress the chain of base
      * references.
      */
-    ((PyArrayObject_fields *)arr)->base = (PyObject *)base;
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+    HPy h_base = HPy_FromPyObject(ctx, (PyObject*)base);
+    HPyArray_SetBase(ctx, h_arr, h_base);
+    HPy_Close(ctx, h_base);
+    HPy_Close(ctx, h_arr);
     PyArray_ENABLEFLAGS(arr, NPY_ARRAY_WRITEBACKIFCOPY);
     PyArray_CLEARFLAGS(base, NPY_ARRAY_WRITEABLE);
 
+    Py_DECREF(base);
     return 0;
 
   fail:
@@ -216,7 +222,13 @@ PyArray_SetBaseObject(PyArrayObject *arr, PyObject *obj)
         return -1;
     }
 
-    ((PyArrayObject_fields *)arr)->base = obj;
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+    HPy h_base = HPy_FromPyObject(ctx, obj);
+    HPyArray_SetBase(ctx, h_arr, h_base);
+    HPy_Close(ctx, h_base);
+    HPy_Close(ctx, h_arr);
+    Py_DECREF(obj);
 
     return 0;
 }
@@ -359,23 +371,34 @@ PyArray_TypeNumFromName(char const *str)
 NPY_NO_EXPORT int
 PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
 {
-    PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
-    if (fa && fa->base) {
-        if (fa->flags & NPY_ARRAY_WRITEBACKIFCOPY) {
+    if (self == NULL) {
+        return 0;
+    }
+    HPyContext *ctx = _HPyGetContext();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
+    HPy h_base = HPyArray_GetBase(ctx, h_arr);
+
+    if (!HPy_IsNull(h_base)) {
+
+        int flags = HPyArray_FLAGS(ctx, h_arr);
+        if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
             /*
-             * WRITEBACKIFCOPY means that fa->base's data
+             * WRITEBACKIFCOPY means that base's data
              * should be updated with the contents
              * of self.
-             * fa->base->flags is not WRITEABLE to protect the relationship
+             * base->flags is not WRITEABLE to protect the relationship
              * unlock it.
              */
             int retval = 0;
-            PyArray_ENABLEFLAGS(((PyArrayObject *)fa->base),
-                                                    NPY_ARRAY_WRITEABLE);
-            PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
-            retval = PyArray_CopyAnyInto((PyArrayObject *)fa->base, self);
-            Py_DECREF(fa->base);
-            fa->base = NULL;
+            HPyArray_ENABLEFLAGS(ctx, h_base, NPY_ARRAY_WRITEABLE);
+            HPyArray_CLEARFLAGS(ctx, h_arr, NPY_ARRAY_WRITEBACKIFCOPY);
+            PyObject *base = HPy_AsPyObject(ctx, h_base);
+            HPy_Close(ctx, h_base);
+            retval = PyArray_CopyAnyInto((PyArrayObject *)base, self);
+            Py_DECREF(base);
+            HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+
+            HPy_Close(ctx, h_arr);
             if (retval < 0) {
                 /* this should never happen, how did the two copies of data
                  * get out of sync?
@@ -385,6 +408,7 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
             return 1;
         }
     }
+    HPy_Close(ctx, h_arr);
     return 0;
 }
 
@@ -435,7 +459,8 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
     if (_buffer_info_free(fa->_buffer_info, (PyObject *)self) < 0) {
         PyErr_WriteUnraisable(NULL);
     }
-    if (fa->base) {
+
+    if (PyArray_BASE(self)) {
         int retval;
         if (PyArray_FLAGS(self) & NPY_ARRAY_WRITEBACKIFCOPY)
         {
@@ -459,7 +484,6 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
          * If fa->base is non-NULL, it is something
          * to DECREF -- either a view or a buffer object
          */
-        Py_XDECREF(fa->base);
     }
 
     if ((fa->flags & NPY_ARRAY_OWNDATA) && fa->data) {
@@ -508,6 +532,8 @@ array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
     if (fa->f_descr._i)  // XXX: temp workaround
         HPy_VISIT(&fa->f_descr);
+    if (fa->f_base._i)  // XXX: temp workaround
+        HPy_VISIT(&fa->f_base);
     return 0;
 }
 
@@ -537,7 +563,7 @@ PyArray_DebugPrint(PyArrayObject *obj)
     printf("\n");
 
     printf(" dtype  : ");
-    PyObject_Print(PyArray_DESCR(obj), stdout, 0);
+    PyObject_Print((PyObject *)PyArray_DESCR(obj), stdout, 0);
     printf("\n");
     printf(" data   : %p\n", fobj->data);
     printf(" strides:");
@@ -546,7 +572,9 @@ PyArray_DebugPrint(PyArrayObject *obj)
     }
     printf("\n");
 
-    printf(" base   : %p\n", fobj->base);
+    PyObject *base = PyArray_BASE(obj);
+
+    printf(" base   : %p\n", base);
 
     printf(" flags :");
     if (fobj->flags & NPY_ARRAY_C_CONTIGUOUS)
@@ -563,10 +591,10 @@ PyArray_DebugPrint(PyArrayObject *obj)
         printf(" NPY_WRITEBACKIFCOPY");
     printf("\n");
 
-    if (fobj->base != NULL && PyArray_Check(fobj->base)) {
+    if (base != NULL && PyArray_Check(base)) {
         printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
         printf("Dump of array's BASE:\n");
-        PyArray_DebugPrint((PyArrayObject *)fobj->base);
+        PyArray_DebugPrint((PyArrayObject *)base);
         printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
     }
     printf("-------------------------------------------------------\n");

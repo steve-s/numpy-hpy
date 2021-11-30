@@ -155,14 +155,22 @@ extern "C" {
 static NPY_INLINE void
 PyArray_DiscardWritebackIfCopy(PyArrayObject *arr)
 {
-    PyArrayObject_fields *fa = (PyArrayObject_fields *)arr;
-    if (fa && fa->base) {
-        if (fa->flags & NPY_ARRAY_WRITEBACKIFCOPY) {
-            PyArray_ENABLEFLAGS((PyArrayObject*)fa->base, NPY_ARRAY_WRITEABLE);
-            Py_DECREF(fa->base);
-            fa->base = NULL;
-            PyArray_CLEARFLAGS(arr, NPY_ARRAY_WRITEBACKIFCOPY);
+    if (arr) {
+        HPyContext *ctx = _HPyGetContext();
+        HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+        HPy h_base = HPyArray_GetBase(ctx, h_arr);
+        if (HPy_IsNull(h_base)) {
+            HPy_Close(ctx, h_arr);
+            return;
         }
+        int flags = HPyArray_FLAGS(ctx, h_arr);
+        if (flags & NPY_ARRAY_WRITEBACKIFCOPY) {
+            HPyArray_ENABLEFLAGS(ctx, h_base, NPY_ARRAY_WRITEABLE);
+            HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+            HPyArray_CLEARFLAGS(ctx, h_arr, NPY_ARRAY_WRITEBACKIFCOPY);
+        }
+        HPy_Close(ctx, h_base);
+        HPy_Close(ctx, h_arr);
     }
 }
 

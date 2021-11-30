@@ -774,7 +774,6 @@ HPyArray_NewFromDescr_int(
     HPy h_descr = HPy_FromPyObject(ctx, (PyObject*)descr);
     HPyField_Store(ctx, result, &fa->f_descr, h_descr);
     HPy_Close(ctx, h_descr);
-    fa->base = (PyObject *)NULL;
     fa->weakreflist = (PyObject *)NULL;
 
     if (nd > 0) {
