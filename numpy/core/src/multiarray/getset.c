@@ -401,7 +401,7 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
                                                 NPY_ARRAY_WRITEABLE);
             PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
         }
-        HPyContext *ctx = _HPyGetContext();
+        HPyContext *ctx = npy_get_context();
         HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
         HPyArray_SetBase(ctx, h_arr, HPy_NULL);
         HPy_Close(ctx, h_arr);

@@ -86,7 +86,7 @@ get_tmp_array(PyArrayObject *orig);
 static NPY_INLINE void
 _set_descr(PyArrayObject *tmp_array, PyArray_Descr *new_descr)
 {
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_new;
     if (new_descr == NULL) {
         h_new = HPy_NULL;

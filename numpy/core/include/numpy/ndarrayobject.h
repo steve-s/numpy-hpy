@@ -156,7 +156,7 @@ static NPY_INLINE void
 PyArray_DiscardWritebackIfCopy(PyArrayObject *arr)
 {
     if (arr) {
-        HPyContext *ctx = _HPyGetContext();
+        HPyContext *ctx = npy_get_context();
         HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
         HPy h_base = HPyArray_GetBase(ctx, h_arr);
         if (HPy_IsNull(h_base)) {

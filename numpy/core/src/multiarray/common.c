@@ -347,7 +347,7 @@ dummy_array_new(PyArray_Descr *descr, npy_intp flags, PyObject *base)
     }
     fa->flags = flags;
     if (base != NULL) {
-        HPyContext *ctx = _HPyGetContext();
+        HPyContext *ctx = npy_get_context();
         HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)fa);
         HPy h_base = HPy_FromPyObject(ctx, base);
         HPyArray_SetBase(ctx, h_arr, h_base);

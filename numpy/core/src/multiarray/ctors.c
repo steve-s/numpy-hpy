@@ -665,7 +665,7 @@ PyArray_NewFromDescr_int(
         int flags, PyObject *obj, PyObject *base, int zeroed,
         int allow_emptystring)
 {
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_subtype = HPy_FromPyObject(ctx, (PyObject*)subtype);
     HPy h_obj = HPy_FromPyObject(ctx, obj);
     HPy h_base = HPy_FromPyObject(ctx, base);

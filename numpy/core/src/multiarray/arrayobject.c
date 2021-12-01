@@ -131,7 +131,7 @@ PyArray_SetWritebackIfCopyBase(PyArrayObject *arr, PyArrayObject *base)
      * Unlike PyArray_SetBaseObject, we do not compress the chain of base
      * references.
      */
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
     HPy h_base = HPy_FromPyObject(ctx, (PyObject*)base);
     HPyArray_SetBase(ctx, h_arr, h_base);
@@ -222,7 +222,7 @@ PyArray_SetBaseObject(PyArrayObject *arr, PyObject *obj)
         return -1;
     }
 
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
     HPy h_base = HPy_FromPyObject(ctx, obj);
     HPyArray_SetBase(ctx, h_arr, h_base);
@@ -374,7 +374,7 @@ PyArray_ResolveWritebackIfCopy(PyArrayObject * self)
     if (self == NULL) {
         return 0;
     }
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
     HPy h_base = HPyArray_GetBase(ctx, h_arr);
 

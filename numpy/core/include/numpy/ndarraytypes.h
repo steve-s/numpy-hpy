@@ -6,9 +6,10 @@
 #include "npy_cpu.h"
 #include "utils.h"
 
-#include "hpy.h"
-
 #define NPY_NO_EXPORT NPY_VISIBILITY_HIDDEN
+
+#include "hpy.h"
+#define npy_get_context _HPyGetContext
 
 /* Only use thread if configured in config and python supports it */
 #if defined WITH_THREAD && !NPY_NO_SMP
@@ -1534,7 +1535,7 @@ HPyArray_GetDescr(HPyContext *ctx, HPy arr)
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyArray_Descr *
 PyArray_DESCR(const PyArrayObject *arr)
 {
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
     HPy h_descr = HPyArray_GetDescr(ctx, h_arr);
     HPy_Close(ctx, h_arr);
@@ -1566,7 +1567,7 @@ HPyArray_SetBase(HPyContext *ctx, HPy arr, HPy new_base)
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyObject *
 PyArray_BASE(const PyArrayObject *arr)
 {
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
     HPy h_base = HPyArray_GetBase(ctx, h_arr);
     HPy_Close(ctx, h_arr);

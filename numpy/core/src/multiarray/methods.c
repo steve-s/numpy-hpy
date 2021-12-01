@@ -1995,7 +1995,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
     int overflowed;
 
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
-    HPyContext *ctx = _HPyGetContext();
+    HPyContext *ctx = npy_get_context();
 
     /* This will free any memory associated with a and
        use the string in setstate as the (writeable) memory.
@@ -2690,7 +2690,7 @@ array_setflags(PyArrayObject *self, PyObject *args, PyObject *kwds)
         }
         else {
             PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
-            HPyContext *ctx = _HPyGetContext();
+            HPyContext *ctx = npy_get_context();
             HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
             HPyArray_SetBase(ctx, h_arr, HPy_NULL);
             HPy_Close(ctx, h_arr);
