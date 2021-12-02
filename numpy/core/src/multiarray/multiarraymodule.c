@@ -108,6 +108,7 @@ set_legacy_print_mode(PyObject *NPY_UNUSED(self), PyObject *args)
 }
 
 NPY_NO_EXPORT PyTypeObject* _PyArray_Type_p = NULL;
+NPY_NO_EXPORT HPyContext *numpy_global_ctx = NULL;
 
 /* Only here for API compatibility */
 NPY_NO_EXPORT PyTypeObject PyBigArray_Type;
@@ -4981,6 +4982,16 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
         goto err;
     }
 #endif
+
+    /* Store the context so legacy functions and extensions can access it */
+    numpy_global_ctx = ctx;
+    s = PyCapsule_New((void *)ctx, NULL, NULL);
+    if (s == NULL) {
+        goto err;
+    }
+    PyDict_SetItemString(d, "_HPY_CONTEXT", s);
+    Py_DECREF(s);
+
     return HPy_FromPyObject(ctx, m);
 
  err:

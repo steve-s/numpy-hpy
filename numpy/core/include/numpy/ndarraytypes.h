@@ -9,7 +9,13 @@
 #define NPY_NO_EXPORT NPY_VISIBILITY_HIDDEN
 
 #include "hpy.h"
-#define npy_get_context _HPyGetContext
+extern NPY_NO_EXPORT HPyContext *numpy_global_ctx;
+static NPY_INLINE HPyContext *
+npy_get_context(void)
+{
+    assert(numpy_global_ctx != NULL);
+    return numpy_global_ctx;
+}
 
 /* Only use thread if configured in config and python supports it */
 #if defined WITH_THREAD && !NPY_NO_SMP

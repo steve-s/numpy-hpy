@@ -30,6 +30,7 @@ extern NPY_NO_EXPORT PyBoolScalarObject _PyArrayScalar_BoolValues[2];
 #if defined(NO_IMPORT) || defined(NO_IMPORT_ARRAY)
 extern void **PyArray_API;
 #else
+HPyContext *numpy_global_ctx = NULL;
 #if defined(PY_ARRAY_UNIQUE_SYMBOL)
 void **PyArray_API;
 #else
@@ -51,7 +52,6 @@ _import_array(void)
       return -1;
   }
   c_api = PyObject_GetAttrString(numpy, "_ARRAY_API");
-  Py_DECREF(numpy);
   if (c_api == NULL) {
       PyErr_SetString(PyExc_AttributeError, "_ARRAY_API not found");
       return -1;
@@ -68,6 +68,11 @@ _import_array(void)
       PyErr_SetString(PyExc_RuntimeError, "_ARRAY_API is NULL pointer");
       return -1;
   }
+
+  PyObject *ctx_capsule = PyObject_GetAttrString(numpy, "_HPY_CONTEXT");
+  Py_DECREF(numpy);
+  numpy_global_ctx = (HPyContext *)PyCapsule_GetPointer(ctx_capsule, NULL);
+  Py_DECREF(ctx_capsule);
 
   /* Perform runtime check of C API version */
   if (NPY_VERSION != PyArray_GetNDArrayCVersion()) {
