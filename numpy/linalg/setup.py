@@ -3,7 +3,6 @@ import sys
 
 def configuration(parent_package='', top_path=None):
     from numpy.distutils.misc_util import Configuration
-    from numpy.distutils.misc_util import get_hpy_src
     from numpy.distutils.system_info import get_info, system_info
     config = Configuration('linalg', parent_package, top_path)
 
@@ -62,8 +61,7 @@ def configuration(parent_package='', top_path=None):
 
     config.add_extension(
         'lapack_lite',
-        sources=['lapack_litemodule.c', get_lapack_lite_sources] +
-            get_hpy_src(),
+        sources=['lapack_litemodule.c', get_lapack_lite_sources],
         depends=['lapack_lite/f2c.h'],
         extra_info=lapack_info,
     )

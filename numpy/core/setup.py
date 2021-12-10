@@ -417,10 +417,9 @@ def visibility_define(config):
     else:
         return ''
 
-def configuration(parent_package='',top_path=None):
+def configuration(parent_package='', top_path=None):
     from numpy.distutils.misc_util import (
-        Configuration, dot_join, exec_mod_from_location, 
-        get_hpy_includes, get_hpy_src)
+        Configuration, dot_join, exec_mod_from_location)
     from numpy.distutils.system_info import (get_info, blas_opt_info,
                                              lapack_opt_info)
 
@@ -670,10 +669,6 @@ def configuration(parent_package='',top_path=None):
             join(codegen_dir, 'genapi.py'),
             ]
 
-    from hpy.devel import HPyDevel
-    hpy_include_dirs = HPyDevel().get_extra_include_dirs()
-    config.add_include_dirs(*hpy_include_dirs)
-
     #######################################################################
     #                          npymath library                            #
     #######################################################################
@@ -760,8 +755,7 @@ def configuration(parent_package='',top_path=None):
     #######################################################################
 
     config.add_extension('_multiarray_tests',
-                    sources=get_hpy_src() + [
-                        join('src', 'multiarray', '_multiarray_tests.c.src'),
+                    sources=[join('src', 'multiarray', '_multiarray_tests.c.src'),
                              join('src', 'common', 'mem_overlap.c'),
                              join('src', 'common', 'npy_argparse.c'),
                              join('src', 'common', 'npy_hashtable.c')],

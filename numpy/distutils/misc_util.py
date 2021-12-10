@@ -2516,11 +2516,14 @@ def exec_mod_from_location(modname, modfile):
     spec.loader.exec_module(foo)
     return foo
 
-def get_hpy_includes():
+def get_hpy_includes(abi):
     from hpy.devel import HPyDevel
     return HPyDevel().get_extra_include_dirs()
 
-def get_hpy_src():
+def get_hpy_src(abi):
     from hpy.devel import HPyDevel
     hpy_info = HPyDevel()
-    return hpy_info.get_extra_sources() + hpy_info.get_ctx_sources()
+    src = hpy_info.get_extra_sources()
+    if abi == 'cpython':
+        src = src + hpy_info.get_ctx_sources()
+    return src

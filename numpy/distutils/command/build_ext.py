@@ -16,7 +16,7 @@ from numpy.distutils.exec_command import filepath_from_subprocess_output
 from numpy.distutils.system_info import combine_paths
 from numpy.distutils.misc_util import (
     filter_sources, get_ext_source_files, get_numpy_include_dirs,
-    has_cxx_sources, has_f_sources, is_sequence
+    has_cxx_sources, has_f_sources, is_sequence, get_hpy_includes, get_hpy_src,
 )
 from numpy.distutils.command.config_compiler import show_fortran_compilers
 from numpy.distutils.ccompiler_opt import new_ccompiler_opt, CCompilerOpt
@@ -81,6 +81,17 @@ class build_ext (old_build_ext):
             self.distribution.include_dirs = []
         self.include_dirs = self.distribution.include_dirs
         self.include_dirs.extend(incl_dirs)
+        hpy_abi = self.distribution.hpy_abi
+        assert hpy_abi in ['cpython', 'universal']
+        print(f'{hpy_abi=}')
+        for ext in self.distribution.ext_modules:
+            if not hasattr(ext, 'hpy_abi'):
+                ext.hpy_abi = hpy_abi
+                ext.include_dirs.extend(get_hpy_includes(hpy_abi))
+                ext.sources.extend(get_hpy_src(hpy_abi))
+                ext.define_macros.append(('HPY', None))
+                if hpy_abi == 'universal':
+                    ext.define_macros.append(('HPY_UNIVERSAL_ABI', None))
 
         old_build_ext.finalize_options(self)
         self.set_undefined_options('build',
