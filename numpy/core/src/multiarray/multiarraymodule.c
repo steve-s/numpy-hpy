@@ -4984,6 +4984,7 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
 #endif
 
     /* Store the context so legacy functions and extensions can access it */
+    assert(numpy_global_ctx == NULL);
     numpy_global_ctx = ctx;
     s = PyCapsule_New((void *)ctx, NULL, NULL);
     if (s == NULL) {

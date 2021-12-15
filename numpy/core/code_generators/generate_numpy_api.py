@@ -47,6 +47,7 @@ _import_array(void)
   int st;
   PyObject *numpy = PyImport_ImportModule("numpy.core._multiarray_umath");
   PyObject *c_api = NULL;
+  PyObject *ctx_capsule = NULL;
 
   if (numpy == NULL) {
       return -1;
@@ -69,10 +70,24 @@ _import_array(void)
       return -1;
   }
 
-  PyObject *ctx_capsule = PyObject_GetAttrString(numpy, "_HPY_CONTEXT");
+  ctx_capsule = PyObject_GetAttrString(numpy, "_HPY_CONTEXT");
   Py_DECREF(numpy);
+  if (ctx_capsule == NULL) {
+      PyErr_SetString(PyExc_AttributeError, "_HPY_CONTEXT not found");
+      return -1;
+  }
+
+  if (!PyCapsule_CheckExact(ctx_capsule)) {
+      PyErr_SetString(PyExc_RuntimeError, "_HPY_CONTEXT is not PyCapsule object");
+      Py_DECREF(ctx_capsule);
+      return -1;
+  }
   numpy_global_ctx = (HPyContext *)PyCapsule_GetPointer(ctx_capsule, NULL);
   Py_DECREF(ctx_capsule);
+  if (numpy_global_ctx == NULL) {
+      PyErr_SetString(PyExc_RuntimeError, "_HPY_CONTEXT is NULL pointer");
+      return -1;
+  }
 
   /* Perform runtime check of C API version */
   if (NPY_VERSION != PyArray_GetNDArrayCVersion()) {
