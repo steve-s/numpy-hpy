@@ -751,7 +751,7 @@ typedef struct tagPyArrayObject_fields {
     /*
      * For malloc/calloc/realloc/free per object
      */
-    PyObject *mem_handler;
+    HPyField f_mem_handler;
 } PyArrayObject_fields;
 
 /*
@@ -1740,10 +1740,30 @@ PyArray_CLEARFLAGS(PyArrayObject *arr, int flags)
     ((PyArrayObject_fields *)arr)->flags &= ~flags;
 }
 
+static NPY_INLINE HPy
+HPyArray_GetHandler(HPyContext *ctx, HPy arr)
+{
+    HPyField f_mem_handler = HPyArray_AsFields(ctx, arr)->f_mem_handler;
+    if (f_mem_handler._i == 0) {
+        return HPy_NULL;
+    }
+    return HPyField_Load(ctx, arr, f_mem_handler);
+}
+
 static NPY_INLINE NPY_RETURNS_BORROWED_REF PyObject *
 PyArray_HANDLER(PyArrayObject *arr)
 {
-    return ((PyArrayObject_fields *)arr)->mem_handler;
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)arr);
+    HPy h_handler = HPyArray_GetHandler(ctx, h_arr);
+    HPy_Close(ctx, h_arr);
+    if (HPy_IsNull(h_handler)) {
+        return NULL;
+    }
+    PyObject *handler = HPy_AsPyObject(ctx, h_handler);
+    HPy_Close(ctx, h_handler);
+    Py_DECREF(handler);  // borrowed ref
+    return handler;
 }
 
 #define PyTypeNum_ISBOOL(type) ((type) == NPY_BOOL)

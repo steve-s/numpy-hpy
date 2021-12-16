@@ -492,7 +492,8 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_REFCOUNT)) {
             PyArray_XDECREF(self);
         }
-        if (fa->mem_handler == NULL) {
+        PyObject *mem_handler = PyArray_HANDLER(self);
+        if (mem_handler == NULL) {
             char *env = getenv("NUMPY_WARN_IF_NO_MEM_POLICY");
             if ((env != NULL) && (strncmp(env, "1", 1) == 0)) {
                 char const * msg = "Trying to dealloc data, but a memory policy "
@@ -512,8 +513,7 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
             if (nbytes == 0) {
                 nbytes = 1;
             }
-            PyDataMem_UserFREE(fa->data, nbytes, fa->mem_handler);
-            Py_DECREF(fa->mem_handler);
+            PyDataMem_UserFREE(fa->data, nbytes, mem_handler);
         }
     }
 
@@ -534,6 +534,8 @@ array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
         HPy_VISIT(&fa->f_descr);
     if (fa->f_base._i)  // XXX: temp workaround
         HPy_VISIT(&fa->f_base);
+    if (fa->f_mem_handler._i)  // XXX: temp workaround
+        HPy_VISIT(&fa->f_mem_handler);
     return 0;
 }
 

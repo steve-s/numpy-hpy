@@ -694,6 +694,7 @@ HPyArray_NewFromDescr_int(
     npy_intp nbytes;
     PyObject *obj = NULL;
     PyObject *subtype = NULL;
+    PyObject *handler = NULL;
 
     if (descr == NULL) {
         return HPy_NULL;
@@ -756,7 +757,6 @@ HPyArray_NewFromDescr_int(
     fa->nd = nd;
     fa->dimensions = NULL;
     fa->data = NULL;
-    fa->mem_handler = NULL;
 
     if (data == NULL) {
         fa->flags = NPY_ARRAY_DEFAULT;
@@ -845,10 +845,13 @@ HPyArray_NewFromDescr_int(
 
     if (data == NULL) {
         /* Store the handler in case the default is modified */
-        fa->mem_handler = PyDataMem_GetHandler();
-        if (fa->mem_handler == NULL) {
+        handler = PyDataMem_GetHandler();
+        if (handler == NULL) {
             goto fail;
         }
+        HPy h_handler = HPy_FromPyObject(ctx, handler);
+        HPyField_Store(ctx, result, &fa->f_mem_handler, h_handler);
+        HPy_Close(ctx, h_handler);
         /*
          * Allocate something even for zero-space arrays
          * e.g. shape=(0,) -- otherwise buffer exposure
@@ -864,10 +867,10 @@ HPyArray_NewFromDescr_int(
          * which could also be sub-fields of a VOID array
          */
         if (zeroed || PyDataType_FLAGCHK(descr, NPY_NEEDS_INIT)) {
-            data = PyDataMem_UserNEW_ZEROED(nbytes, 1, fa->mem_handler);
+            data = PyDataMem_UserNEW_ZEROED(nbytes, 1, handler);
         }
         else {
-            data = PyDataMem_UserNEW(nbytes, fa->mem_handler);
+            data = PyDataMem_UserNEW(nbytes, handler);
         }
         if (data == NULL) {
             raise_memory_error(fa->nd, fa->dimensions, descr);
@@ -878,7 +881,6 @@ HPyArray_NewFromDescr_int(
     }
     else {
         /* The handlers should never be called in this case */
-        fa->mem_handler = NULL;
         /*
          * If data is passed in, this object won't own it.
          */
@@ -979,7 +981,7 @@ HPyArray_NewFromDescr_int(
     Py_DECREF(descr);
     Py_XDECREF(subtype);
     Py_XDECREF(obj);
-    Py_XDECREF(fa->mem_handler);
+    Py_XDECREF(handler);
     Py_DECREF(fa);
     return HPy_NULL;
 }

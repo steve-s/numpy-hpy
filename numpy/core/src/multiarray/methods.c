@@ -2170,16 +2170,20 @@ array_setstate(PyArrayObject *self, PyObject *args)
         if (!IsAligned(self) || swap || (len <= 1000)) {
             npy_intp num = PyArray_NBYTES_ALLOCATED(self);
             /* Store the handler in case the default is modified */
-            Py_XDECREF(fa->mem_handler);
-            fa->mem_handler = PyDataMem_GetHandler();
-            if (fa->mem_handler == NULL) {
-                Py_CLEAR(fa->mem_handler);
+            PyObject *new_handler = PyDataMem_GetHandler();
+            if (new_handler == NULL) {
+                HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
                 Py_DECREF(rawdata);
                 return NULL;
             }
+            HPy h_handler = HPy_FromPyObject(ctx, new_handler);
+            HPyField_Store(ctx, h_arr, &fa->f_mem_handler, h_handler);
+            HPy_Close(ctx, h_handler);
+            Py_DECREF(new_handler);
+
             fa->data = PyDataMem_UserNEW(num, PyArray_HANDLER(self));
             if (PyArray_DATA(self) == NULL) {
-                Py_CLEAR(fa->mem_handler);
+                HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
                 Py_DECREF(rawdata);
                 return PyErr_NoMemory();
             }
@@ -2222,8 +2226,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
         }
         else {
             /* The handlers should never be called in this case */
-            Py_XDECREF(fa->mem_handler);
-            fa->mem_handler = NULL;
+            HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
             fa->data = datastr;
             if (PyArray_SetBaseObject(self, rawdata) < 0) {
                 Py_DECREF(rawdata);
@@ -2235,14 +2238,19 @@ array_setstate(PyArrayObject *self, PyObject *args)
         npy_intp num = PyArray_NBYTES_ALLOCATED(self);
 
         /* Store the functions in case the default handler is modified */
-        Py_XDECREF(fa->mem_handler);
-        fa->mem_handler = PyDataMem_GetHandler();
-        if (fa->mem_handler == NULL) {
+        PyObject *new_handler = PyDataMem_GetHandler();
+        if (new_handler == NULL) {
+            Py_DECREF(rawdata);
             return NULL;
         }
+        HPy h_handler = HPy_FromPyObject(ctx, new_handler);
+        HPyField_Store(ctx, h_arr, &fa->f_mem_handler, h_handler);
+        HPy_Close(ctx, h_handler);
+        Py_DECREF(new_handler);
+
         fa->data = PyDataMem_UserNEW(num, PyArray_HANDLER(self));
         if (PyArray_DATA(self) == NULL) {
-            Py_CLEAR(fa->mem_handler);
+            HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
             return PyErr_NoMemory();
         }
         if (PyDataType_FLAGCHK(PyArray_DESCR(self), NPY_NEEDS_INIT)) {
