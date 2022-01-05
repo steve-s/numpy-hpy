@@ -516,6 +516,7 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
             PyDataMem_UserFREE(fa->data, nbytes, mem_handler);
         }
     }
+    fa->data = NULL;
 
     /* must match allocation in PyArray_NewFromDescr */
     npy_free_cache_dim(fa->dimensions, 2 * fa->nd);
@@ -530,6 +531,10 @@ static int
 array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
 {
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
+    if ((fa->flags & NPY_ARRAY_OWNDATA) && fa->data) {
+        // only called for an unfinalized array
+        array_items_visit(fa, visit, arg);
+    }
     HPy_VISIT(&fa->f_descr);
     HPy_VISIT(&fa->f_base);
     HPy_VISIT(&fa->f_mem_handler);

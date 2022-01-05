@@ -254,6 +254,110 @@ PyArray_XDECREF(PyArrayObject *mp)
     return 0;
 }
 
+static int
+visit_item(char *data, PyArray_Descr *descr,
+        HPyFunc_visitproc visit, void *arg)
+{
+    HPyField temp;
+
+    if (!PyDataType_REFCHK(descr)) {
+        return 0;
+    }
+
+    if (descr->type_num == NPY_OBJECT) {
+        memcpy(&temp, data, sizeof(temp));
+        HPy_VISIT(&temp);
+        memcpy(data, &temp, sizeof(temp));
+    }
+    else if (PyDataType_HASFIELDS(descr)) {
+        PyObject *key, *value, *title = NULL;
+        PyArray_Descr *new;
+        int offset;
+        Py_ssize_t pos = 0;
+
+        while (PyDict_Next(descr->fields, &pos, &key, &value)) {
+            if (NPY_TITLE_KEY(key, value)) {
+                continue;
+            }
+            if (!PyArg_ParseTuple(value, "Oi|O", &new, &offset,
+                                  &title)) {
+                return 0;
+            }
+            visit_item(data + offset, new, visit, arg);
+        }
+    }
+    else if (PyDataType_HASSUBARRAY(descr)) {
+        int size, i, inner_elsize;
+
+        inner_elsize = descr->subarray->base->elsize;
+        if (inner_elsize == 0) {
+            /* There cannot be any elements, so return */
+            return 0;
+        }
+        /* Subarrays are always contiguous in memory */
+        size = descr->elsize / inner_elsize;
+
+        for (i = 0; i < size; i++){
+            visit_item(data + i * inner_elsize, descr->subarray->base, visit, arg);
+        }
+    }
+    else {
+        /* This path should not be reachable. */
+        assert(0);
+    }
+    return 0;
+}
+
+NPY_NO_EXPORT int
+array_items_visit(PyArrayObject_fields *fa, HPyFunc_visitproc visit, void *arg)
+{
+    npy_intp i, n;
+    HPyField *data;
+    PyArrayIterObject it;
+    HPyField temp;
+    PyArrayObject *mp = (PyArrayObject *)fa;
+    PyArray_Descr *descr = PyArray_DESCR(mp);
+
+    if (!PyDataType_REFCHK(descr)) {
+        return 0;
+    }
+
+    if (descr->type_num != NPY_OBJECT) {
+        PyArray_RawIterBaseInit(&it, mp);
+        while(it.index < it.size) {
+            visit_item(it.dataptr, descr, visit, arg);
+            PyArray_ITER_NEXT(&it);
+        }
+        return 0;
+    }
+    if (PyArray_ISONESEGMENT(mp)) {
+        data = (HPyField *)PyArray_DATA(mp);
+        n = PyArray_SIZE(mp);
+        if (PyArray_ISALIGNED(mp)) {
+            for (i = 0; i < n; i++, data++) {
+                HPy_VISIT(data);
+            }
+        }
+        else {
+            for (i = 0; i < n; i++, data++) {
+                memcpy(&temp, data, sizeof(temp));
+                HPy_VISIT(&temp);
+                memcpy(data, &temp, sizeof(temp));
+            }
+        }
+    }
+    else { /* handles misaligned data too */
+        PyArray_RawIterBaseInit(&it, mp);
+        while(it.index < it.size) {
+            memcpy(&temp, it.dataptr, sizeof(temp));
+            HPy_VISIT(&temp);
+            memcpy(it.dataptr, &temp, sizeof(temp));
+            PyArray_ITER_NEXT(&it);
+        }
+    }
+    return 0;
+}
+
 /*NUMPY_API
  * Assumes contiguous
  */

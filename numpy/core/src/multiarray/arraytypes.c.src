@@ -648,13 +648,16 @@ STRING_setitem(PyObject *op, void *ov, void *vap)
 static PyObject *
 OBJECT_getitem(void *ip, void *NPY_UNUSED(ap))
 {
-    PyObject *obj;
-    memcpy(&obj, ip, sizeof(obj));
-    if (obj == NULL) {
+    HPyContext *ctx = npy_get_context();
+    HPyField f_obj;
+    memcpy(&f_obj, ip, sizeof(f_obj));
+    if (HPyField_IsNull(f_obj)) {
         Py_RETURN_NONE;
     }
     else {
-        Py_INCREF(obj);
+        HPy h_obj = HPyField_Load(ctx, HPy_NULL, f_obj);
+        PyObject *obj = HPy_AsPyObject(ctx, h_obj);
+        HPy_Close(ctx, h_obj);
         return obj;
     }
 }
@@ -663,14 +666,15 @@ OBJECT_getitem(void *ip, void *NPY_UNUSED(ap))
 static int
 OBJECT_setitem(PyObject *op, void *ov, void *NPY_UNUSED(ap))
 {
-    PyObject *obj;
+    HPyContext *ctx = npy_get_context();
+    HPy h_op = HPy_FromPyObject(ctx, op);
+    HPyField f_obj;
 
-    memcpy(&obj, ov, sizeof(obj));
+    memcpy(&f_obj, ov, sizeof(f_obj));
+    HPyField_Store(ctx, HPy_NULL, &f_obj, h_op);
+    HPy_Close(ctx, h_op);
 
-    Py_INCREF(op);
-    Py_XDECREF(obj);
-
-    memcpy(ov, &op, sizeof(op));
+    memcpy(ov, &f_obj, sizeof(f_obj));
 
     return PyErr_Occurred() ? -1 : 0;
 }
