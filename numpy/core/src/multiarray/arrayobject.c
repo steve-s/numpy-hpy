@@ -490,7 +490,7 @@ array_finalize_impl(HPyContext *ctx, HPy h_self)
         /* Free internal references if an Object array */
         PyArray_Descr *descr = PyArray_DESCR(self);
         if (PyDataType_FLAGCHK(descr, NPY_ITEM_REFCOUNT)) {
-            PyArray_XDECREF(self);
+            array_clear_hpyfields(ctx, h_self);
         }
         PyObject *mem_handler = PyArray_HANDLER(self);
         if (mem_handler == NULL) {

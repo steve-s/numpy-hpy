@@ -343,7 +343,7 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
     int writeable=1;
     Py_buffer view;
     HPyContext *ctx = npy_get_context();
-    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
+    HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
 
     /* 2016-19-02, 1.12 */
     int ret = DEPRECATE("Assigning the 'data' attribute is an "
@@ -385,17 +385,18 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
         return -1;
     }
     if (PyArray_FLAGS(self) & NPY_ARRAY_OWNDATA) {
-        PyArray_XDECREF(self);
+        array_clear_hpyfields(ctx, h_self);
         size_t nbytes = PyArray_NBYTES_ALLOCATED(self);
         PyObject *handler = PyArray_HANDLER(self);
         if (handler == NULL) {
             /* This can happen if someone arbitrarily sets NPY_ARRAY_OWNDATA */
             PyErr_SetString(PyExc_RuntimeError,
                             "no memory handler found but OWNDATA flag set");
+            HPy_Close(ctx, h_self);
             return -1;
         }
         PyDataMem_UserFREE(PyArray_DATA(self), nbytes, handler);
-        HPyField_Store(ctx, h_arr, &HPyArray_AsFields(ctx, h_arr)->f_mem_handler, HPy_NULL);
+        HPyField_Store(ctx, h_self, &HPyArray_AsFields(ctx, h_self)->f_mem_handler, HPy_NULL);
     }
     if (PyArray_BASE(self)) {
         if (PyArray_FLAGS(self) & NPY_ARRAY_WRITEBACKIFCOPY) {
@@ -403,9 +404,9 @@ array_data_set(PyArrayObject *self, PyObject *op, void *NPY_UNUSED(ignored))
                                                 NPY_ARRAY_WRITEABLE);
             PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
         }
-        HPyArray_SetBase(ctx, h_arr, HPy_NULL);
+        HPyArray_SetBase(ctx, h_self, HPy_NULL);
     }
-    HPy_Close(ctx, h_arr);
+    HPy_Close(ctx, h_self);
     Py_INCREF(op);
     if (PyArray_SetBaseObject(self, op) < 0) {
         return -1;

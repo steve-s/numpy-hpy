@@ -54,13 +54,15 @@ class TestTake:
             a.take(b, out=a[:6], mode=mode)
             del a
             if HAS_REFCOUNT:
-                assert_(all(sys.getrefcount(o) == 3 for o in objects))
+                for o in objects:
+                    assert sys.getrefcount(o) == 3
             # not contiguous, example:
             a = np.array(objects * 2)[::2]
             a.take(b, out=a[:6], mode=mode)
             del a
             if HAS_REFCOUNT:
-                assert_(all(sys.getrefcount(o) == 3 for o in objects))
+                for o in objects:
+                    assert sys.getrefcount(o) == 3
 
     def test_unicode_mode(self):
         d = np.arange(10)
