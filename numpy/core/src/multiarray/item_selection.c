@@ -765,7 +765,12 @@ PyArray_Repeat(PyArrayObject *aop, PyObject *op, int axis)
     }
 
     Py_DECREF(repeats);
-    PyArray_INCREF(ret);
+    HPyContext *ctx = npy_get_context();
+    HPy h_aop = HPy_FromPyObject(ctx, (PyObject *)aop);
+    HPy h_ret = HPy_FromPyObject(ctx, (PyObject *)ret);
+    array_fixup_hpyfields(ctx, h_aop, h_ret);
+    HPy_Close(ctx, h_ret);
+    HPy_Close(ctx, h_aop);
     Py_XDECREF(aop);
     return (PyObject *)ret;
 
@@ -902,7 +907,13 @@ PyArray_Choose(PyArrayObject *ip, PyObject *op, PyArrayObject *out,
         PyArray_MultiIter_NEXT(multi);
     }
 
-    PyArray_INCREF(obj);
+    HPyContext *ctx = npy_get_context();
+    HPy h_multi = HPy_FromPyObject(ctx, (PyObject *)multi);
+    HPy h_obj = HPy_FromPyObject(ctx, (PyObject *)obj);
+    // XXX: this is wrong, multi isn't the owner of the copied objects!
+    array_fixup_hpyfields(ctx, h_multi, h_obj);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_multi);
     Py_DECREF(multi);
     for (i = 0; i < n; i++) {
         Py_XDECREF(mps[i]);

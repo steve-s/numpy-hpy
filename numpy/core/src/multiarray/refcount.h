@@ -22,4 +22,7 @@ array_items_visit(PyArrayObject_fields *fa, HPyFunc_visitproc visit, void *arg);
 NPY_NO_EXPORT int
 array_clear_hpyfields(HPyContext *ctx, HPy h_arr)
 
+NPY_NO_EXPORT int
+array_fixup_hpyfields(HPyContext *ctx, HPy h_src, HPy h_dst)
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_REFCOUNT_H_ */

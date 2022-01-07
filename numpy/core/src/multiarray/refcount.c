@@ -380,6 +380,36 @@ array_clear_hpyfields(HPyContext *ctx, HPy h_arr)
 }
 
 
+typedef struct {
+    HPyContext *ctx;
+    HPy h_src;
+    HPy h_dest;
+} fixup_fields_args_t;
+
+static int
+fixup_fields_visitor(HPyField *pf, void *arg)
+{
+    fixup_fields_args_t *args = (fixup_fields_args_t *)arg;
+    HPy item = HPyField_Load(args->ctx, args->h_src, *pf);
+    *pf = HPyField_NULL;
+    HPyField_Store(args->ctx, args->h_dest, pf, item);
+    HPy_Close(args->ctx, item);
+    return 0;
+}
+
+/* Replace fields that have been memcpy'ed from a source to a destination
+ * array with a proper copy, with the owner set as the destination array.
+ * Equivalent to PyArray_INCREF.
+ */
+NPY_NO_EXPORT int
+array_fixup_hpyfields(HPyContext *ctx, HPy h_src, HPy h_dest)
+{
+    PyArrayObject_fields *fa = HPyArray_AsFields(ctx, h_dest);
+    fixup_fields_args_t args = {ctx, h_src, h_dest};
+    return array_items_visit(fa, fixup_fields_visitor, &args);
+}
+
+
 /*NUMPY_API
  * Assumes contiguous
  */
