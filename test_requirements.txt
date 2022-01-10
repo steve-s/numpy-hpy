@@ -11,4 +11,4 @@ cffi; python_version < '3.10'
 # - Mypy relies on C API features not present in PyPy
 mypy==0.931; platform_python_implementation != "PyPy"
 # HPy
-git+https://github.com/hpyproject/hpy.git@4ea9c9901a8bc4fd7a4c4a12bbe77783da2f1aa4#egg=hpy
+git+https://github.com/hpyproject/hpy.git@92990828f064b174b52e7dfe39dd0226b47b92eb#egg=hpy
