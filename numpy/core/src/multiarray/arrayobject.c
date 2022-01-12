@@ -58,6 +58,7 @@ maintainer email:  oliphant.travis@ieee.org
 #include "mem_overlap.h"
 #include "numpyos.h"
 #include "strfuncs.h"
+#include "refcount.h"
 
 #include "binop_override.h"
 #include "array_coercion.h"

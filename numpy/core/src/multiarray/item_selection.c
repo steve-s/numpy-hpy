@@ -29,6 +29,7 @@
 #include "arraytypes.h"
 #include "array_coercion.h"
 #include "simd/simd.h"
+#include "refcount.h"
 
 static NPY_GCC_OPT_3 NPY_INLINE int
 npy_fasttake_impl(

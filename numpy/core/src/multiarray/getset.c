@@ -22,6 +22,7 @@
 #include "mem_overlap.h"
 #include "alloc.h"
 #include "npy_buffer.h"
+#include "refcount.h"
 
 /*******************  array attribute get and set routines ******************/
 
