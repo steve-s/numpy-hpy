@@ -73,7 +73,9 @@ copycast_isaligned(int ndim, npy_intp const *shape,
  * Returns 0 on success, -1 on failure.
  */
 NPY_NO_EXPORT int
-raw_array_assign_array(int ndim, npy_intp const *shape,
+raw_array_assign_array(
+        HPy_info *hpy_info,
+        int ndim, npy_intp const *shape,
         PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
         PyArray_Descr *src_dtype, char *src_data, npy_intp const *src_strides)
 {
@@ -129,6 +131,7 @@ raw_array_assign_array(int ndim, npy_intp const *shape,
     }
 
     npy_intp strides[2] = {src_strides_it[0], dst_strides_it[0]};
+    cast_info.context.hpy_info = hpy_info;
 
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
         /* Process the innermost dimension */
@@ -274,6 +277,10 @@ PyArray_AssignArray(PyArrayObject *dst, PyArrayObject *src,
                             wheremask, casting);
     }
 
+    HPyContext *ctx = npy_get_context();
+    HPy h_dst = HPy_FromPyObject(ctx, (PyObject *)dst);
+    HPy h_src = HPy_FromPyObject(ctx, (PyObject *)src);
+
     /*
      * Performance fix for expressions like "a[1000:6000] += x".  In this
      * case, first an in-place add is done, followed by an assignment,
@@ -347,6 +354,8 @@ PyArray_AssignArray(PyArrayObject *dst, PyArrayObject *src,
 
         src = tmp;
         copied_src = 1;
+        HPy_Close(ctx, h_src);
+        h_src = HPy_FromPyObject(ctx, (PyObject *)src);
     }
 
     /* Broadcast 'src' to 'dst' for raw iteration */
@@ -394,11 +403,13 @@ PyArray_AssignArray(PyArrayObject *dst, PyArrayObject *src,
             return 0;
         }
     }
+    HPy_info hpy_info = {ctx, h_src, h_dst};
 
     if (wheremask == NULL) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
-        if (raw_array_assign_array(PyArray_NDIM(dst), PyArray_DIMS(dst),
+        if (raw_array_assign_array(&hpy_info,
+                PyArray_NDIM(dst), PyArray_DIMS(dst),
                 PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
                 PyArray_DESCR(src), PyArray_DATA(src), src_strides) < 0) {
             goto fail;
@@ -427,12 +438,16 @@ PyArray_AssignArray(PyArrayObject *dst, PyArrayObject *src,
         }
     }
 
+    HPy_Close(ctx, h_dst);
+    HPy_Close(ctx, h_src);
     if (copied_src) {
         Py_DECREF(src);
     }
     return 0;
 
 fail:
+    HPy_Close(ctx, h_dst);
+    HPy_Close(ctx, h_src);
     if (copied_src) {
         Py_DECREF(src);
     }

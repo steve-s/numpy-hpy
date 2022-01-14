@@ -31,7 +31,9 @@
  * Returns 0 on success, -1 on failure.
  */
 NPY_NO_EXPORT int
-raw_array_assign_scalar(int ndim, npy_intp const *shape,
+raw_array_assign_scalar(
+        HPyContext *ctx, HPy dst_array,
+        int ndim, npy_intp const *shape,
         PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
         PyArray_Descr *src_dtype, char *src_data)
 {
@@ -79,6 +81,8 @@ raw_array_assign_scalar(int ndim, npy_intp const *shape,
     }
 
     npy_intp strides[2] = {0, dst_strides_it[0]};
+    HPy_info hpy_info = {ctx, HPy_NULL, dst_array};
+    cast_info.context.hpy_info = &hpy_info;
 
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
         /* Process the innermost dimension */
@@ -217,6 +221,9 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
         return -1;
     }
 
+    HPyContext *ctx = npy_get_context();
+    HPy h_dst = HPy_FromPyObject(ctx, (PyObject *)dst);
+
     /*
      * Make a copy of the src data if it's a different dtype than 'dst'
      * or isn't aligned, and the destination we're copying to has
@@ -264,7 +271,8 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
     if (wheremask == NULL) {
         /* A straightforward value assignment */
         /* Do the assignment with raw array iteration */
-        if (raw_array_assign_scalar(PyArray_NDIM(dst), PyArray_DIMS(dst),
+        if (raw_array_assign_scalar(ctx, h_dst,
+                PyArray_NDIM(dst), PyArray_DIMS(dst),
                 PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
                 src_dtype, src_data) < 0) {
             goto fail;
@@ -292,6 +300,7 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
         }
     }
 
+    HPy_Close(ctx, h_dst);
     if (allocated_src_data) {
         PyArray_free(src_data);
     }
@@ -299,6 +308,7 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
     return 0;
 
 fail:
+    HPy_Close(ctx, h_dst);
     if (allocated_src_data) {
         PyArray_free(src_data);
     }

@@ -42,6 +42,12 @@ typedef enum {
 
 struct PyArrayMethodObject_tag;
 
+typedef struct {
+    HPyContext *ctx;
+    HPy h_src;
+    HPy h_dst;
+} HPy_info;
+
 /*
  * This struct is specific to an individual (possibly repeated) call of
  * the ArrayMethods strided operator, and as such is passed into the various
@@ -58,6 +64,8 @@ typedef struct {
 
     /* Operand descriptors, filled in by resolve_descriptors */
     PyArray_Descr **descriptors;
+
+    HPy_info *hpy_info;
 } PyArrayMethod_Context;
 
 

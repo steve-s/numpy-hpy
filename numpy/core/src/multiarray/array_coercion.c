@@ -485,11 +485,16 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     char *args[2] = {data, item};
     const npy_intp strides[2] = {0, 0};
     const npy_intp length = 1;
+    HPyContext *ctx = npy_get_context();
+    HPy h_dst = HPy_FromPyObject(ctx, (PyObject *)dummy_arr);
+    HPy_info hpy_info = {ctx, HPy_NULL, h_dst};
+    cast_info.context.hpy_info = &hpy_info;
     if (cast_info.func(&cast_info.context,
             args, &length, strides, cast_info.auxdata) < 0) {
         res = -1;
     }
     NPY_cast_info_xfree(&cast_info);
+    HPy_Close(ctx, h_dst);
 
   finish:
     if (PyDataType_REFCHK(tmp_descr)) {

@@ -1047,6 +1047,8 @@ PyArray_TransferNDimToStrided(npy_intp ndim,
     npy_intp strides[2] = {src_stride0, dst_stride};
 
     char *args[2] = {src, dst};
+    HPy_info hpy_info = {npy_get_context()};
+    cast_info->context.hpy_info = &hpy_info;
     if (N >= count) {
         return cast_info->func(&cast_info->context,
                 args, &count, strides, cast_info->auxdata);
@@ -1178,6 +1180,8 @@ PyArray_TransferStridedToNDim(npy_intp ndim,
     N = shape0 - coord0;
 
     npy_intp strides[2] = {src_stride, dst_stride0};
+    HPy_info hpy_info = {npy_get_context()};
+    cast_info->context.hpy_info = &hpy_info;
 
     char *args[2] = {src, dst};
     if (N >= count) {
@@ -1841,6 +1845,8 @@ mapiter_@name@(PyArrayMapIterObject *mit)
                 }
 #endif
 
+                HPy_info hpy_info = {npy_get_context()};
+                cast_info.context.hpy_info = &hpy_info;
                 do {
 
 #if @isget@

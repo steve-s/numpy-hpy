@@ -197,7 +197,7 @@ _any_to_object_auxdata_clone(NpyAuxData *auxdata)
 
 static int
 _strided_to_strided_any_to_object(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -207,15 +207,21 @@ _strided_to_strided_any_to_object(
 
     _any_to_object_auxdata *data = (_any_to_object_auxdata *)auxdata;
 
-    PyObject *dst_ref = NULL;
+    HPyContext *ctx = context->hpy_info->ctx;
+    PyObject *dst_pyobj = NULL;
+    HPyField dst_field = HPyField_NULL;
+    HPy dst_h = HPy_NULL;
     char *orig_src = src;
     while (N > 0) {
-        memcpy(&dst_ref, dst, sizeof(dst_ref));
-        Py_XDECREF(dst_ref);
-        dst_ref = data->getitem(src, data->arr);
-        memcpy(dst, &dst_ref, sizeof(PyObject *));
+        memcpy(&dst_field, dst, sizeof(dst_field));
+        dst_pyobj = data->getitem(src, data->arr);
+        dst_h = HPy_FromPyObject(ctx, dst_pyobj);
+        Py_XDECREF(dst_pyobj);
+        HPyField_Store(ctx, context->hpy_info->h_dst, &dst_field, dst_h);
+        HPy_Close(ctx, dst_h);
+        memcpy(dst, &dst_field, sizeof(dst_field));
 
-        if (dst_ref == NULL) {
+        if (HPyField_IsNull(dst_field)) {
             return -1;
         }
         src += src_stride;
@@ -311,7 +317,7 @@ _object_to_any_auxdata_clone(NpyAuxData *data)
 
 static int
 strided_to_strided_object_to_any(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -320,18 +326,29 @@ strided_to_strided_object_to_any(
     npy_intp src_stride = strides[0], dst_stride = strides[1];
     _object_to_any_auxdata *data = (_object_to_any_auxdata *)auxdata;
 
+    HPyContext *ctx = context->hpy_info->ctx;
     PyObject *src_ref;
+    HPyField src_field = HPyField_NULL;
+    HPy src_h = HPy_NULL;
 
     while (N > 0) {
-        memcpy(&src_ref, src, sizeof(src_ref));
+        memcpy(&src_field, src, sizeof(src_field));
+        if (HPyField_IsNull(src_field)) {
+            src_ref = NULL;
+        } else {
+            src_h = HPyField_Load(ctx, context->hpy_info->h_src, src_field);
+            src_ref = HPy_AsPyObject(ctx, src_h);
+            HPy_Close(ctx, src_h);
+        }
         if (PyArray_Pack(data->descr, dst, src_ref ? src_ref : Py_None) < 0) {
             return -1;
         }
 
         if (data->move_references && src_ref != NULL) {
-            Py_DECREF(src_ref);
-            memset(src, 0, sizeof(src_ref));
+            HPyField_Store(ctx, context->hpy_info->h_src, &src_field, HPy_NULL);
+            memcpy(src, &src_field, sizeof(src_field));
         }
+        Py_XDECREF(src_ref);
 
         N--;
         dst += dst_stride;
@@ -1437,7 +1454,7 @@ static NpyAuxData *_one_to_n_data_clone(NpyAuxData *data)
 
 static int
 _strided_to_strided_one_to_n(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1449,6 +1466,7 @@ _strided_to_strided_one_to_n(
 
     const npy_intp subN = d->N;
     npy_intp sub_strides[2] = {0, d->wrapped.descriptors[1]->elsize};
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         char *sub_args[2] = {src, dst};
@@ -1466,7 +1484,7 @@ _strided_to_strided_one_to_n(
 
 static int
 _strided_to_strided_one_to_n_with_finish(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1479,6 +1497,7 @@ _strided_to_strided_one_to_n_with_finish(
     const npy_intp subN = d->N;
     const npy_intp one_item = 1, zero_stride = 0;
     npy_intp sub_strides[2] = {0, d->wrapped.descriptors[1]->elsize};
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         char *sub_args[2] = {src, dst};
@@ -1611,7 +1630,7 @@ _strided_to_strided_1_to_1(
 
 static int
 _strided_to_strided_n_to_n(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1621,6 +1640,7 @@ _strided_to_strided_n_to_n(
 
     _n_to_n_data *d = (_n_to_n_data *)auxdata;
     npy_intp subN = d->N;
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         char *sub_args[2] = {src, dst};
@@ -1637,7 +1657,7 @@ _strided_to_strided_n_to_n(
 
 static int
 _contig_to_contig_n_to_n(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *NPY_UNUSED(strides),
         NpyAuxData *auxdata)
 {
@@ -1649,6 +1669,7 @@ _contig_to_contig_n_to_n(
     npy_intp subN = N * d->N;
 
     char *sub_args[2] = {src, dst};
+    d->wrapped.context.hpy_info = context->hpy_info;
     if (d->wrapped.func(&d->wrapped.context,
             sub_args, &subN, d->strides, d->wrapped.auxdata) < 0) {
         return -1;
@@ -1801,7 +1822,7 @@ static NpyAuxData *_subarray_broadcast_data_clone(NpyAuxData *data)
 
 static int
 _strided_to_strided_subarray_broadcast(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1817,6 +1838,7 @@ _strided_to_strided_subarray_broadcast(
     npy_intp dst_subitemsize = d->wrapped.descriptors[1]->elsize;
 
     npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         loop_index = 0;
@@ -1847,7 +1869,7 @@ _strided_to_strided_subarray_broadcast(
 
 static int
 _strided_to_strided_subarray_broadcast_withrefs(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -1863,6 +1885,7 @@ _strided_to_strided_subarray_broadcast_withrefs(
     npy_intp dst_subitemsize = d->wrapped.descriptors[1]->elsize;
 
     npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         loop_index = 0;
@@ -2227,7 +2250,7 @@ static NpyAuxData *_field_transfer_data_clone(NpyAuxData *data)
 
 static int
 _strided_to_strided_field_transfer(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
@@ -2245,6 +2268,7 @@ _strided_to_strided_field_transfer(
             for (i = 0; i < field_count; ++i) {
                 _single_field_transfer field = d->fields[i];
                 char *fargs[2] = {src + field.src_offset, dst + field.dst_offset};
+                field.info.context.hpy_info = context->hpy_info;
                 if (field.info.func(&field.info.context,
                         fargs, &blocksize, strides, field.info.auxdata) < 0) {
                     return -1;
@@ -2258,6 +2282,7 @@ _strided_to_strided_field_transfer(
             for (i = 0; i < field_count; ++i) {
                 _single_field_transfer field = d->fields[i];
                 char *fargs[2] = {src + field.src_offset, dst + field.dst_offset};
+                field.info.context.hpy_info = context->hpy_info;
                 if (field.info.func(&field.info.context,
                         fargs, &N, strides, field.info.auxdata) < 0) {
                     return -1;
@@ -2273,7 +2298,8 @@ _strided_to_strided_field_transfer(
  * must have fields. Does not take care of object<->structure conversion
  */
 NPY_NO_EXPORT int
-get_fields_transfer_function(int NPY_UNUSED(aligned),
+get_fields_transfer_function(
+                            int NPY_UNUSED(aligned),
                             npy_intp src_stride, npy_intp dst_stride,
                             PyArray_Descr *src_dtype, PyArray_Descr *dst_dtype,
                             int move_references,
@@ -2576,7 +2602,7 @@ _masked_wrapper_transfer_data_clone(NpyAuxData *data)
 
 static int
 _strided_masked_wrapper_decref_transfer_function(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata)
@@ -2587,6 +2613,7 @@ _strided_masked_wrapper_decref_transfer_function(
 
     _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
     npy_intp subloopsize;
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         /* Skip masked values, still calling decref for move_references */
@@ -2620,7 +2647,7 @@ _strided_masked_wrapper_decref_transfer_function(
 
 static int
 _strided_masked_wrapper_transfer_function(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         npy_bool *mask, npy_intp mask_stride,
         NpyAuxData *auxdata)
@@ -2631,6 +2658,7 @@ _strided_masked_wrapper_transfer_function(
 
     _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
     npy_intp subloopsize;
+    d->wrapped.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         /* Skip masked values */
