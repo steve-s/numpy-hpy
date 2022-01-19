@@ -206,20 +206,49 @@ PyUFunc_FF_F_As_DD_D(char **args, npy_intp const *dimensions, npy_intp const *st
  **                         GENERIC OBJECT lOOPS                             **
  *****************************************************************************/
 
+static NPY_INLINE HPy
+npy_hf2h(HPyContext *ctx, HPyField hf)
+{
+    if (HPyField_IsNull(hf)) {
+        return HPy_Dup(ctx, ctx->h_None);
+    } else {
+        return HPyField_Load(ctx, HPy_NULL, hf);
+    }
+}
+
+static NPY_INLINE PyObject *
+npy_hf2py(HPyContext *ctx, HPyField hf)
+{
+    HPy h = npy_hf2h(ctx, hf);
+    PyObject *ret = HPy_AsPyObject(ctx, h);
+    HPy_Close(ctx, h);
+    return ret;
+}
+
+/* Steals a reference to obj. */
+static NPY_INLINE void
+npy_store_py(HPyContext *ctx, HPyField *hf, PyObject *obj)
+{
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    Py_DECREF(obj);
+    HPyField_Store(ctx, HPy_NULL, hf, h_obj);
+    HPy_Close(ctx, h_obj);
+}
+
 /*UFUNC_API*/
 NPY_NO_EXPORT void
 PyUFunc_O_O(char **args, npy_intp const *dimensions, npy_intp const *steps, void *func)
 {
     unaryfunc f = (unaryfunc)func;
+    HPyContext *ctx = npy_get_context();
     UNARY_LOOP {
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject **out = (PyObject **)op1;
-        PyObject *ret = f(in1 ? in1 : Py_None);
+        PyObject *in1 = npy_hf2py(ctx, *(HPyField *)ip1);
+        PyObject *ret = f(in1);
+        Py_DECREF(in1);
         if (ret == NULL) {
             return;
         }
-        Py_XDECREF(*out);
-        *out = ret;
+        npy_store_py(ctx, (HPyField *)op1, ret);
     }
 }
 
@@ -228,34 +257,36 @@ NPY_NO_EXPORT void
 PyUFunc_O_O_method(char **args, npy_intp const *dimensions, npy_intp const *steps, void *func)
 {
     char *meth = (char *)func;
+    HPyContext *ctx = npy_get_context();
     UNARY_LOOP {
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject **out = (PyObject **)op1;
+        PyObject *in1 = npy_hf2py(ctx, *(HPyField *)ip1);
         PyObject *ret, *func;
-        func = PyObject_GetAttrString(in1 ? in1 : Py_None, meth);
+        func = PyObject_GetAttrString(in1, meth);
         if (func != NULL && !PyCallable_Check(func)) {
+            Py_DECREF(in1);
             Py_DECREF(func);
             func = NULL;
         }
         if (func == NULL) {
             PyObject *exc, *val, *tb;
-            PyTypeObject *type = in1 ? Py_TYPE(in1) : Py_TYPE(Py_None);
+            PyTypeObject *type = Py_TYPE(in1);
             PyErr_Fetch(&exc, &val, &tb);
             PyErr_Format(PyExc_TypeError,
                          "loop of ufunc does not support argument %d of "
                          "type %s which has no callable %s method",
                          i, type->tp_name, meth);
             npy_PyErr_ChainExceptionsCause(exc, val, tb);
+            Py_DECREF(in1);
             Py_XDECREF(func);
             return;
         }
+        Py_DECREF(in1);
         ret = PyObject_CallObject(func, NULL);
         Py_DECREF(func);
         if (ret == NULL) {
             return;
         }
-        Py_XDECREF(*out);
-        *out = ret;
+        npy_store_py(ctx, (HPyField *)op1, ret);
     }
 }
 
@@ -264,16 +295,17 @@ NPY_NO_EXPORT void
 PyUFunc_OO_O(char **args, npy_intp const *dimensions, npy_intp const *steps, void *func)
 {
     binaryfunc f = (binaryfunc)func;
+    HPyContext *ctx = npy_get_context();
     BINARY_LOOP {
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject *in2 = *(PyObject **)ip2;
-        PyObject **out = (PyObject **)op1;
-        PyObject *ret = f(in1 ? in1 : Py_None, in2 ? in2 : Py_None);
+        PyObject *in1 = npy_hf2py(ctx, *(HPyField *)ip1);
+        PyObject *in2 = npy_hf2py(ctx, *(HPyField *)ip2);
+        PyObject *ret = f(in1, in2);
+        Py_DECREF(in1);
+        Py_DECREF(in2);
         if (ret == NULL) {
             return;
         }
-        Py_XDECREF(*out);
-        *out = ret;
+        npy_store_py(ctx, (HPyField *)op1, ret);
     }
 }
 
@@ -281,21 +313,19 @@ NPY_NO_EXPORT void
 PyUFunc_OOO_O(char **args, npy_intp const *dimensions, npy_intp const *steps, void *func)
 {
     ternaryfunc f = (ternaryfunc)func;
+    HPyContext *ctx = npy_get_context();
     TERNARY_LOOP {
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject *in2 = *(PyObject **)ip2;
-        PyObject *in3 = *(PyObject **)ip3;
-        PyObject **out = (PyObject **)op1;
-        PyObject *ret = f(
-            in1 ? in1 : Py_None,
-            in2 ? in2 : Py_None,
-            in3 ? in3 : Py_None
-        );
+        PyObject *in1 = npy_hf2py(ctx, *(HPyField *)ip1);
+        PyObject *in2 = npy_hf2py(ctx, *(HPyField *)ip2);
+        PyObject *in3 = npy_hf2py(ctx, *(HPyField *)ip3);
+        PyObject *ret = f(in1, in2, in3);
+        Py_DECREF(in1);
+        Py_DECREF(in2);
+        Py_DECREF(in3);
         if (ret == NULL) {
             return;
         }
-        Py_XDECREF(*out);
-        *out = ret;
+        npy_store_py(ctx, (HPyField *)op1, ret);
     }
 }
 
@@ -304,17 +334,15 @@ NPY_NO_EXPORT void
 PyUFunc_OO_O_method(char **args, npy_intp const *dimensions, npy_intp const *steps, void *func)
 {
     char *meth = (char *)func;
+    HPyContext *ctx = npy_get_context();
     BINARY_LOOP {
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject *in2 = *(PyObject **)ip2;
-        PyObject **out = (PyObject **)op1;
-        PyObject *ret = PyObject_CallMethod(in1 ? in1 : Py_None,
-                                            meth, "(O)", in2);
+        PyObject *in1 = npy_hf2py(ctx, *(HPyField *)ip1);
+        PyObject *in2 = npy_hf2py(ctx, *(HPyField *)ip2);
+        PyObject *ret = PyObject_CallMethod(in1, meth, "(O)", in2);
         if (ret == NULL) {
             return;
         }
-        Py_XDECREF(*out);
-        *out = ret;
+        npy_store_py(ctx, (HPyField *)op1, ret);
     }
 }
 
@@ -2497,34 +2525,34 @@ NPY_NO_EXPORT void
  */
 NPY_NO_EXPORT void
 OBJECT@suffix@_@kind@(char **args, npy_intp const *dimensions, npy_intp const *steps, void *NPY_UNUSED(func)) {
+    HPyContext *ctx = npy_get_context();
     BINARY_LOOP {
-        PyObject *ret_obj;
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject *in2 = *(PyObject **)ip2;
-
-        in1 = in1 ? in1 : Py_None;
-        in2 = in2 ? in2 : Py_None;
+        HPy h_in1 = npy_hf2h(ctx, *(HPyField *)ip1);
+        HPy h_in2 = npy_hf2h(ctx, *(HPyField *)ip2);
 
         /*
          * Do not use RichCompareBool because it includes an identity check for
          * == and !=. This is wrong for elementwise behaviour, since it means
          * that NaN can be equal to NaN and an array is equal to itself.
          */
-        ret_obj = PyObject_RichCompare(in1, in2, Py_@OP@);
-        if (ret_obj == NULL) {
+        HPy h_ret = HPy_RichCompare(ctx, h_in1, h_in2, Py_@OP@);
+        HPy_Close(ctx, h_in1);
+        HPy_Close(ctx, h_in2);
+        if (HPy_IsNull(h_ret)) {
             return;
         }
 #if @as_bool@
         {
-            int ret = PyObject_IsTrue(ret_obj);
-            Py_DECREF(ret_obj);
+            int ret = HPy_IsTrue(ctx, h_ret);
+            HPy_Close(ctx, h_ret);
             if (ret == -1) {
                 return;
             }
             *((npy_bool *)op1) = (npy_bool)ret;
         }
 #else
-        *((PyObject **)op1) = ret_obj;
+        HPyField_Store(ctx, HPy_NULL, (HPyField *)op1, h_ret);
+        HPy_Close(ctx, h_ret);
 #endif
     }
 }
@@ -2535,10 +2563,9 @@ NPY_NO_EXPORT void
 OBJECT_sign(char **args, npy_intp const *dimensions, npy_intp const *steps, void *NPY_UNUSED(func))
 {
     PyObject *zero = PyLong_FromLong(0);
-
+    HPyContext *ctx = npy_get_context();
     UNARY_LOOP {
-        PyObject *in1 = *(PyObject **)ip1;
-        PyObject **out = (PyObject **)op1;
+        PyObject *in1 = npy_hf2py(ctx, *(HPyField *)ip1);
         PyObject *ret = NULL;
         int v;
 
@@ -2566,8 +2593,7 @@ OBJECT_sign(char **args, npy_intp const *dimensions, npy_intp const *steps, void
         if (ret == NULL) {
             break;
         }
-        Py_XDECREF(*out);
-        *out = ret;
+        npy_store_py(ctx, (HPyField *)op1, ret);
     }
     Py_XDECREF(zero);
 }
