@@ -535,6 +535,20 @@ npy_bswap8_unaligned(char * x)
 }
 
 
+/*
+ * Store obj into the field hf.
+ * Note that the owner of the field is NOT SET!
+ * Steals a reference to obj.
+ */
+static NPY_INLINE void
+npy_store_py(HPyContext *ctx, HPyField *hf, PyObject *obj)
+{
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    Py_DECREF(obj);
+    HPyField_Store(ctx, HPy_NULL, hf, h_obj);
+    HPy_Close(ctx, h_obj);
+}
+
 /* Start raw iteration */
 #define NPY_RAW_ITER_START(idim, ndim, coord, shape) \
         memset((coord), 0, (ndim) * sizeof(coord[0])); \

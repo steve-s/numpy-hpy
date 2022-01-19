@@ -225,16 +225,6 @@ npy_hf2py(HPyContext *ctx, HPyField hf)
     return ret;
 }
 
-/* Steals a reference to obj. */
-static NPY_INLINE void
-npy_store_py(HPyContext *ctx, HPyField *hf, PyObject *obj)
-{
-    HPy h_obj = HPy_FromPyObject(ctx, obj);
-    Py_DECREF(obj);
-    HPyField_Store(ctx, HPy_NULL, hf, h_obj);
-    HPy_Close(ctx, h_obj);
-}
-
 /*UFUNC_API*/
 NPY_NO_EXPORT void
 PyUFunc_O_O(char **args, npy_intp const *dimensions, npy_intp const *steps, void *func)
