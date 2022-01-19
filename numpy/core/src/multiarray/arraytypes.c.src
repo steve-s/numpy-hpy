@@ -3816,22 +3816,29 @@ OBJECT_dot(char *ip1, npy_intp is1, char *ip2, npy_intp is2, char *op, npy_intp 
 
 /* this requires buffer to be filled with objects or NULL */
 static int
-OBJECT_fill(PyObject **buffer, npy_intp length, void *NPY_UNUSED(ignored))
+OBJECT_fill(HPyField *buffer, npy_intp length, void *NPY_UNUSED(ignored))
 {
+    HPyContext *ctx = npy_get_context();
     int retval = 0;
     npy_intp i;
-    PyObject *start = buffer[0];
-    PyObject *delta = buffer[1];
-    PyObject *second;
+    HPy h_start = HPyField_Load(ctx, HPy_NULL, buffer[0]);
+    PyObject *start = HPy_AsPyObject(ctx, h_start);
+    HPy_Close(ctx, h_start);
+    HPy h_second = HPyField_Load(ctx, HPy_NULL, buffer[1]);
+    PyObject *second = HPy_AsPyObject(ctx, h_second);
+    HPy_Close(ctx, h_second);
 
-    delta = PyNumber_Subtract(delta, start);
+    PyObject *delta = PyNumber_Subtract(second, start);
+    Py_DECREF(second);
     if (!delta) {
         return -1;
     }
-    second = start = PyNumber_Add(start, delta);
-    if (!start) {
+    second = PyNumber_Add(start, delta);
+    Py_DECREF(start);
+    if (!second) {
         goto error;
     }
+    start = second;
     buffer += 2;
 
     for (i = 2; i < length; i++, buffer++) {
@@ -3839,8 +3846,7 @@ OBJECT_fill(PyObject **buffer, npy_intp length, void *NPY_UNUSED(ignored))
         if (!start) {
             goto error;
         }
-        Py_XDECREF(*buffer);
-        *buffer = start;
+        npy_store_py(ctx, buffer, start);
     }
     goto finish;
 
