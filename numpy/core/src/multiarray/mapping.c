@@ -1092,6 +1092,8 @@ array_boolean_subscript(PyArrayObject *self,
             NPY_cast_info_xfree(&cast_info);
             return NULL;
         }
+        HPy_info hpy_info = {npy_get_context()};
+        cast_info.context.hpy_info = &hpy_info;
 
         NPY_BEGIN_THREADS_NDITER(iter);
 
@@ -1285,6 +1287,8 @@ array_assign_boolean_subscript(PyArrayObject *self,
             NpyIter_Deallocate(iter);
             return -1;
         }
+        HPy_info hpy_info = {npy_get_context()};
+        cast_info.context.hpy_info = &hpy_info;
 
         if (!needs_api) {
             NPY_BEGIN_THREADS_NDITER(iter);
