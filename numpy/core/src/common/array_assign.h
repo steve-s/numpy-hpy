@@ -57,7 +57,9 @@ raw_array_assign_scalar(
  * Returns 0 on success, -1 on failure.
  */
 NPY_NO_EXPORT int
-raw_array_wheremasked_assign_scalar(int ndim, npy_intp const *shape,
+raw_array_wheremasked_assign_scalar(
+        HPyContext *ctx, HPy dst_array,
+        int ndim, npy_intp const *shape,
         PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
         PyArray_Descr *src_dtype, char *src_data,
         PyArray_Descr *wheremask_dtype, char *wheremask_data,

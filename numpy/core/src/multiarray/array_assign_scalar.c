@@ -110,7 +110,9 @@ fail:
  * Returns 0 on success, -1 on failure.
  */
 NPY_NO_EXPORT int
-raw_array_wheremasked_assign_scalar(int ndim, npy_intp const *shape,
+raw_array_wheremasked_assign_scalar(
+        HPyContext *ctx, HPy dst_array,
+        int ndim, npy_intp const *shape,
         PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
         PyArray_Descr *src_dtype, char *src_data,
         PyArray_Descr *wheremask_dtype, char *wheremask_data,
@@ -163,6 +165,8 @@ raw_array_wheremasked_assign_scalar(int ndim, npy_intp const *shape,
     }
 
     npy_intp strides[2] = {0, dst_strides_it[0]};
+    HPy_info hpy_info = {ctx, HPy_NULL, dst_array};
+    cast_info.context.hpy_info = &hpy_info;
 
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
         /* Process the innermost dimension */
@@ -290,7 +294,7 @@ PyArray_AssignRawScalar(PyArrayObject *dst,
         }
 
         /* Do the masked assignment with raw array iteration */
-        if (raw_array_wheremasked_assign_scalar(
+        if (raw_array_wheremasked_assign_scalar(ctx, h_dst,
                 PyArray_NDIM(dst), PyArray_DIMS(dst),
                 PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
                 src_dtype, src_data,
