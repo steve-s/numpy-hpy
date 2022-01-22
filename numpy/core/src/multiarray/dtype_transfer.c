@@ -87,7 +87,7 @@ get_decref_transfer_function(int aligned,
 /* Moves references from src to dst */
 NPY_NO_EXPORT int
 _strided_to_strided_move_references(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -95,19 +95,27 @@ _strided_to_strided_move_references(
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
 
-    PyObject *src_ref = NULL, *dst_ref = NULL;
+    HPyContext *ctx = context->hpy_info->ctx;
+    HPyField src_ref = HPyField_NULL, dst_ref = HPyField_NULL;
+    HPy h_item;
     while (N > 0) {
         memcpy(&src_ref, src, sizeof(src_ref));
         memcpy(&dst_ref, dst, sizeof(dst_ref));
+        if (HPyField_IsNull(src_ref)) {
+            h_item = HPy_NULL;
+        }
+        else {
+            h_item = HPyField_Load(ctx, context->hpy_info->h_src, src_ref);
+        }
 
-        /* Release the reference in dst */
-        NPY_DT_DBG_REFTRACE("dec dst ref", dst_ref);
-        Py_XDECREF(dst_ref);
+        //NPY_DT_DBG_REFTRACE("dec dst ref", dst_ref);
         /* Move the reference */
-        NPY_DT_DBG_REFTRACE("move src ref", src_ref);
-        memcpy(dst, &src_ref, sizeof(src_ref));
+        //NPY_DT_DBG_REFTRACE("move src ref", src_ref);
+        HPyField_Store(ctx, context->hpy_info->h_dst, &dst_ref, h_item);
+        HPy_Close(ctx, h_item);
+        memcpy(dst, &dst_ref, sizeof(dst_ref));
         /* Set the source reference to NULL */
-        src_ref = NULL;
+        HPyField_Store(ctx, context->hpy_info->h_src, &src_ref, HPy_NULL);
         memcpy(src, &src_ref, sizeof(src_ref));
 
         src += src_stride;
@@ -120,7 +128,7 @@ _strided_to_strided_move_references(
 /* Copies references from src to dst */
 NPY_NO_EXPORT int
 _strided_to_strided_copy_references(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -128,19 +136,25 @@ _strided_to_strided_copy_references(
     char *src = args[0], *dst = args[1];
     npy_intp src_stride = strides[0], dst_stride = strides[1];
 
-    PyObject *src_ref = NULL, *dst_ref = NULL;
+    HPyContext *ctx = context->hpy_info->ctx;
+    HPyField src_ref = HPyField_NULL, dst_ref = HPyField_NULL;
+    HPy h_item;
     while (N > 0) {
         memcpy(&src_ref, src, sizeof(src_ref));
         memcpy(&dst_ref, dst, sizeof(dst_ref));
+        if (HPyField_IsNull(src_ref)) {
+            h_item = HPy_NULL;
+        }
+        else {
+            h_item = HPyField_Load(ctx, context->hpy_info->h_src, src_ref);
+        }
 
         /* Copy the reference */
-        NPY_DT_DBG_REFTRACE("copy src ref", src_ref);
-        memcpy(dst, &src_ref, sizeof(src_ref));
-        /* Claim the reference */
-        Py_XINCREF(src_ref);
-        /* Release the reference in dst */
-        NPY_DT_DBG_REFTRACE("dec dst ref", dst_ref);
-        Py_XDECREF(dst_ref);
+        //NPY_DT_DBG_REFTRACE("copy src ref", src_ref);
+        HPyField_Store(ctx, context->hpy_info->h_dst, &dst_ref, h_item);
+        HPy_Close(ctx, h_item);
+        memcpy(dst, &dst_ref, sizeof(src_ref));
+        //NPY_DT_DBG_REFTRACE("dec dst ref", dst_ref);
 
         src += src_stride;
         dst += dst_stride;
