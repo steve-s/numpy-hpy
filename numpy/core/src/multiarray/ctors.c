@@ -2835,6 +2835,11 @@ PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src, NPY_ORDER order)
     src_count = *src_countptr;
     char *args[2] = {src_dataptr[0], dst_dataptr[0]};
     npy_intp strides[2] = {src_stride, dst_stride};
+    HPyContext *ctx = npy_get_context();
+    HPy h_src = HPy_FromPyObject(ctx, (PyObject *)src);
+    HPy h_dst = HPy_FromPyObject(ctx, (PyObject *)dst);
+    HPy_info hpy_info = {ctx, h_src, h_dst};
+    cast_info.context.hpy_info = &hpy_info;
 
     int res = 0;
     for(;;) {
@@ -2878,6 +2883,8 @@ PyArray_CopyAsFlat(PyArrayObject *dst, PyArrayObject *src, NPY_ORDER order)
     NPY_END_THREADS;
 
     NPY_cast_info_xfree(&cast_info);
+    HPy_Close(ctx, h_src);
+    HPy_Close(ctx, h_dst);
     NpyIter_Deallocate(dst_iter);
     NpyIter_Deallocate(src_iter);
     return res;
