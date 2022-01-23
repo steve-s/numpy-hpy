@@ -18,7 +18,10 @@
 #include "npy_pycompat.h"
 
 static void
-_fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype);
+HPyArray_FillObjectArray(HPyContext *ctx, HPy h_arr, HPy h_obj);
+
+static void
+_fillobject(HPyContext *ctx, HPy h_arr, char *data, HPy h_obj, PyArray_Descr *dtype);
 
 
 /*NUMPY_API
@@ -416,58 +419,57 @@ array_fixup_hpyfields(HPyContext *ctx, HPy h_src, HPy h_dest)
 NPY_NO_EXPORT void
 PyArray_FillObjectArray(PyArrayObject *arr, PyObject *obj)
 {
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)arr);
+    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    HPyArray_FillObjectArray(ctx, h_arr, h_obj);
+    HPy_Close(ctx, h_obj);
+    HPy_Close(ctx, h_arr);
+}
+
+static void
+HPyArray_FillObjectArray(HPyContext *ctx, HPy h_arr, HPy h_obj)
+{
     npy_intp i,n;
+    PyArrayObject *arr = (PyArrayObject *)HPyArray_AsFields(ctx, h_arr);
     n = PyArray_SIZE(arr);
     if (PyArray_DESCR(arr)->type_num == NPY_OBJECT) {
-        PyObject **optr;
-        optr = (PyObject **)(PyArray_DATA(arr));
+        HPyField *fptr = (HPyField *)(PyArray_DATA(arr));
         n = PyArray_SIZE(arr);
-        if (obj == NULL) {
-            for (i = 0; i < n; i++) {
-                *optr++ = NULL;
-            }
-        }
-        else {
-            for (i = 0; i < n; i++) {
-                Py_INCREF(obj);
-                *optr++ = obj;
-            }
+        for (i = 0; i < n; i++) {
+            HPyField_Store(ctx, h_arr, fptr++, h_obj);
         }
     }
     else {
-        char *optr;
-        optr = PyArray_DATA(arr);
+        char *data = PyArray_DATA(arr);
         for (i = 0; i < n; i++) {
-            _fillobject(optr, obj, PyArray_DESCR(arr));
-            optr += PyArray_DESCR(arr)->elsize;
+            _fillobject(ctx, h_arr, data, h_obj, PyArray_DESCR(arr));
+            data += PyArray_DESCR(arr)->elsize;
         }
     }
 }
 
 static void
-_fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype)
+_fillobject(HPyContext *ctx, HPy h_arr, char *data, HPy h_obj, PyArray_Descr *dtype)
 {
     if (!PyDataType_FLAGCHK(dtype, NPY_ITEM_REFCOUNT)) {
-        PyObject *arr;
-
+        PyObject *obj = HPy_AsPyObject(ctx, h_obj);
         if ((obj == Py_None) ||
                 (PyLong_Check(obj) && PyLong_AsLong(obj) == 0)) {
             return;
         }
         /* Clear possible long conversion error */
         PyErr_Clear();
-        Py_INCREF(dtype);
-        arr = PyArray_NewFromDescr(&PyArray_Type, dtype,
-                                   0, NULL, NULL, NULL,
-                                   0, NULL);
+        PyObject *arr = (PyObject *)HPyArray_AsFields(ctx, h_arr);
         if (arr!=NULL) {
-            dtype->f->setitem(obj, optr, arr);
+            dtype->f->setitem(obj, data, arr);
         }
-        Py_XDECREF(arr);
     }
     if (dtype->type_num == NPY_OBJECT) {
-        Py_XINCREF(obj);
-        memcpy(optr, &obj, sizeof(obj));
+        HPyField f_item;
+        memcpy(&f_item, data, sizeof(f_item));
+        HPyField_Store(ctx, h_arr, &f_item, h_obj);
+        memcpy(data, &f_item, sizeof(f_item));
     }
     else if (PyDataType_HASFIELDS(dtype)) {
         PyObject *key, *value, *title = NULL;
@@ -482,7 +484,7 @@ _fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype)
             if (!PyArg_ParseTuple(value, "Oi|O", &new, &offset, &title)) {
                 return;
             }
-            _fillobject(optr + offset, obj, new);
+            _fillobject(ctx, h_arr, data + offset, h_obj, new);
         }
     }
     else if (PyDataType_HASSUBARRAY(dtype)) {
@@ -498,8 +500,8 @@ _fillobject(char *optr, PyObject *obj, PyArray_Descr *dtype)
 
         /* Call _fillobject on each item recursively. */
         for (i = 0; i < size; i++){
-            _fillobject(optr, obj, dtype->subarray->base);
-            optr += inner_elsize;
+            _fillobject(ctx, h_arr, data, h_obj, dtype->subarray->base);
+            data += inner_elsize;
         }
     }
     else {
