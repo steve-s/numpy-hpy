@@ -2238,37 +2238,40 @@ static void
 /**end repeat**/
 
 static void
-OBJECT_copyswapn(PyObject **dst, npy_intp dstride, PyObject **src,
+OBJECT_copyswapn(HPyField *dst, npy_intp dstride, HPyField *src,
         npy_intp sstride, npy_intp n, int NPY_UNUSED(swap),
         void *NPY_UNUSED(arr))
 {
+    HPyContext *ctx = npy_get_context();
+    HPy obj;
     npy_intp i;
     if (src != NULL) {
-        if (__ALIGNED(dst, sizeof(PyObject **))
-                && __ALIGNED(src, sizeof(PyObject **))
-                && __ALIGNED(dstride, sizeof(PyObject **))
-                && __ALIGNED(sstride, sizeof(PyObject **))) {
-            dstride /= sizeof(PyObject **);
-            sstride /= sizeof(PyObject **);
+        if (__ALIGNED(dst, sizeof(HPyField *))
+                && __ALIGNED(src, sizeof(HPyField *))
+                && __ALIGNED(dstride, sizeof(HPyField *))
+                && __ALIGNED(sstride, sizeof(HPyField *))) {
+            dstride /= sizeof(HPyField *);
+            sstride /= sizeof(HPyField *);
             for (i = 0; i < n; i++) {
-                Py_XINCREF(*src);
-                Py_XDECREF(*dst);
-                *dst = *src;
+                obj = HPyField_Load(ctx, HPy_NULL, *src);
+                HPyField_Store(ctx, HPy_NULL, dst, obj);
+                HPy_Close(ctx, obj);
                 dst += dstride;
                 src += sstride;
             }
         }
         else {
             unsigned char *dstp, *srcp;
-            PyObject *tmp;
+            HPyField tmp;
             dstp = (unsigned char*)dst;
             srcp = (unsigned char*)src;
             for (i = 0; i < n; i++) {
                 memcpy(&tmp, srcp, sizeof(tmp));
-                Py_XINCREF(tmp);
+                obj = HPyField_Load(ctx, HPy_NULL, tmp);
                 memcpy(&tmp, dstp, sizeof(tmp));
-                Py_XDECREF(tmp);
-                memcpy(dstp, srcp, sizeof(tmp));
+                HPyField_Store(ctx, HPy_NULL, &tmp, obj);
+                memcpy(dstp, &tmp, sizeof(tmp));
+                HPy_Close(ctx, obj);
                 dstp += dstride;
                 srcp += sstride;
             }
@@ -2279,24 +2282,26 @@ OBJECT_copyswapn(PyObject **dst, npy_intp dstride, PyObject **src,
 }
 
 static void
-OBJECT_copyswap(PyObject **dst, PyObject **src, int NPY_UNUSED(swap),
+OBJECT_copyswap(HPyField *dst, HPyField *src, int NPY_UNUSED(swap),
         void *NPY_UNUSED(arr))
 {
-
+    HPyContext *ctx = npy_get_context();
+    HPy obj;
     if (src != NULL) {
-        if (__ALIGNED(dst,sizeof(PyObject **)) &&
-                __ALIGNED(src,sizeof(PyObject **))) {
-            Py_XINCREF(*src);
-            Py_XDECREF(*dst);
-            *dst = *src;
+        if (__ALIGNED(dst, sizeof(HPyField *)) &&
+                __ALIGNED(src, sizeof(HPyField *))) {
+            obj = HPyField_Load(ctx, HPy_NULL, *src);
+            HPyField_Store(ctx, HPy_NULL, dst, obj);
+            HPy_Close(ctx, obj);
         }
         else {
-            PyObject *tmp;
+            HPyField tmp;
             memcpy(&tmp, src, sizeof(tmp));
-            Py_XINCREF(tmp);
+            obj = HPyField_Load(ctx, HPy_NULL, tmp);
             memcpy(&tmp, dst, sizeof(tmp));
-            Py_XDECREF(tmp);
-            memcpy(dst, src, sizeof(tmp));
+            HPyField_Store(ctx, HPy_NULL, &tmp, obj);
+            memcpy(dst, &tmp, sizeof(tmp));
+            HPy_Close(ctx, obj);
         }
     }
 }
