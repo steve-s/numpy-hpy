@@ -456,6 +456,7 @@ _fillobject(HPyContext *ctx, HPy h_arr, char *data, HPy h_obj, PyArray_Descr *dt
         PyObject *obj = HPy_AsPyObject(ctx, h_obj);
         if ((obj == Py_None) ||
                 (PyLong_Check(obj) && PyLong_AsLong(obj) == 0)) {
+            Py_DECREF(obj);
             return;
         }
         /* Clear possible long conversion error */
@@ -464,6 +465,7 @@ _fillobject(HPyContext *ctx, HPy h_arr, char *data, HPy h_obj, PyArray_Descr *dt
         if (arr!=NULL) {
             dtype->f->setitem(obj, data, arr);
         }
+        Py_DECREF(obj);
     }
     if (dtype->type_num == NPY_OBJECT) {
         HPyField f_item;
