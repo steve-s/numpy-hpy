@@ -530,12 +530,9 @@ static int
 array_traverse_impl(void *self, HPyFunc_visitproc visit, void *arg)
 {
     PyArrayObject_fields *fa = (PyArrayObject_fields *)self;
-    if (fa->f_descr._i)  // XXX: temp workaround
-        HPy_VISIT(&fa->f_descr);
-    if (fa->f_base._i)  // XXX: temp workaround
-        HPy_VISIT(&fa->f_base);
-    if (fa->f_mem_handler._i)  // XXX: temp workaround
-        HPy_VISIT(&fa->f_mem_handler);
+    HPy_VISIT(&fa->f_descr);
+    HPy_VISIT(&fa->f_base);
+    HPy_VISIT(&fa->f_mem_handler);
     return 0;
 }
 
