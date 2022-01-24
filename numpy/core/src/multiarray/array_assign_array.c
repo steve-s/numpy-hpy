@@ -160,7 +160,9 @@ fail:
  * Returns 0 on success, -1 on failure.
  */
 NPY_NO_EXPORT int
-raw_array_wheremasked_assign_array(int ndim, npy_intp const *shape,
+raw_array_wheremasked_assign_array(
+        HPy_info *hpy_info,
+        int ndim, npy_intp const *shape,
         PyArray_Descr *dst_dtype, char *dst_data, npy_intp const *dst_strides,
         PyArray_Descr *src_dtype, char *src_data, npy_intp const *src_strides,
         PyArray_Descr *wheremask_dtype, char *wheremask_data,
@@ -224,6 +226,7 @@ raw_array_wheremasked_assign_array(int ndim, npy_intp const *shape,
         NPY_BEGIN_THREADS;
     }
     npy_intp strides[2] = {src_strides_it[0], dst_strides_it[0]};
+    cast_info.context.hpy_info = hpy_info;
 
     NPY_RAW_ITER_START(idim, ndim, coord, shape_it) {
         PyArray_MaskedStridedUnaryOp *stransfer;
@@ -428,7 +431,7 @@ PyArray_AssignArray(PyArrayObject *dst, PyArrayObject *src,
 
         /* A straightforward where-masked assignment */
          /* Do the masked assignment with raw array iteration */
-        if (raw_array_wheremasked_assign_array(
+        if (raw_array_wheremasked_assign_array(&hpy_info,
                 PyArray_NDIM(dst), PyArray_DIMS(dst),
                 PyArray_DESCR(dst), PyArray_DATA(dst), PyArray_STRIDES(dst),
                 PyArray_DESCR(src), PyArray_DATA(src), src_strides,
