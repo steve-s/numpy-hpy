@@ -1317,6 +1317,9 @@ PyArray_TransferMaskedStridedToNDim(npy_intp ndim,
     N = shape0 - coord0;
 
     npy_intp strides[2] = {src_stride, dst_stride0};
+    HPyContext *ctx = npy_get_context();
+    HPy_info hpy_info = {ctx};
+    cast_info->context.hpy_info = &hpy_info;
 
     char *args[2] = {src, dst};
     if (N >= count) {
