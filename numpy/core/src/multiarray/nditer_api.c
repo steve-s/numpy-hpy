@@ -2043,6 +2043,11 @@ npyiter_copy_from_buffers(NpyIter *iter)
                                 "of operand %d\n", (int)iop);
             /* Decrement refs */
             npy_intp buf_stride = dtypes[iop]->elsize;
+            HPyContext *ctx = npy_get_context();
+            // XXX: what's h_src?
+            HPy_info hpy_info = {ctx};
+            transferinfo[iop].write.context.hpy_info = &hpy_info;
+
             if (transferinfo[iop].write.func(
                     &transferinfo[iop].write.context,
                     &buffer, &transfersize, &buf_stride,

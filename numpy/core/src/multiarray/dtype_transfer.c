@@ -244,6 +244,7 @@ _strided_to_strided_any_to_object(
     }
     if (data->decref_src.func != NULL) {
         /* If necessary, clear the input buffer (`move_references`) */
+        data->decref_src.context.hpy_info = context->hpy_info;
         if (data->decref_src.func(&data->decref_src.context,
                 &orig_src, &N, &src_stride, data->decref_src.auxdata) < 0) {
             return -1;
@@ -1512,6 +1513,7 @@ _strided_to_strided_one_to_n_with_finish(
     const npy_intp one_item = 1, zero_stride = 0;
     npy_intp sub_strides[2] = {0, d->wrapped.descriptors[1]->elsize};
     d->wrapped.context.hpy_info = context->hpy_info;
+    d->decref_src.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         char *sub_args[2] = {src, dst};
@@ -1633,11 +1635,12 @@ static NpyAuxData *_n_to_n_data_clone(NpyAuxData *data)
 
 static int
 _strided_to_strided_1_to_1(
-        PyArrayMethod_Context *NPY_UNUSED(context), char *const *args,
+        PyArrayMethod_Context *context, char *const *args,
         const npy_intp *dimensions, const npy_intp *strides,
         NpyAuxData *auxdata)
 {
     _n_to_n_data *d = (_n_to_n_data *)auxdata;
+    d->wrapped.context.hpy_info = context->hpy_info;
     return d->wrapped.func(&d->wrapped.context,
             args, dimensions, strides, d->wrapped.auxdata);
 }
@@ -1900,6 +1903,12 @@ _strided_to_strided_subarray_broadcast_withrefs(
 
     npy_intp sub_strides[2] = {src_subitemsize, dst_subitemsize};
     d->wrapped.context.hpy_info = context->hpy_info;
+    if (d->decref_src.func != NULL) {
+        d->decref_src.context.hpy_info = context->hpy_info;
+    }
+    if (d->decref_dst.func != NULL) {
+        d->decref_dst.context.hpy_info = context->hpy_info;
+    }
 
     while (N > 0) {
         loop_index = 0;
@@ -2628,6 +2637,7 @@ _strided_masked_wrapper_decref_transfer_function(
     _masked_wrapper_transfer_data *d = (_masked_wrapper_transfer_data *)auxdata;
     npy_intp subloopsize;
     d->wrapped.context.hpy_info = context->hpy_info;
+    d->decref_src.context.hpy_info = context->hpy_info;
 
     while (N > 0) {
         /* Skip masked values, still calling decref for move_references */
@@ -2715,7 +2725,7 @@ _dec_src_ref_nop(
 
 static int
 _strided_to_null_dec_src_ref_reference(
-        PyArrayMethod_Context *NPY_UNUSED(context),
+        PyArrayMethod_Context *context,
         char *const *args, const npy_intp *dimensions,
         const npy_intp *strides, NpyAuxData *NPY_UNUSED(auxdata))
 {
@@ -2723,13 +2733,15 @@ _strided_to_null_dec_src_ref_reference(
     npy_intp N = dimensions[0];
     npy_intp stride = strides[0];
 
-    PyObject *src_ref = NULL;
+    HPyContext *ctx = context->hpy_info->ctx;
+    HPy h_src = context->hpy_info->h_src;
+    HPyField src_ref = HPyField_NULL;
     while (N > 0) {
         /* Release the reference in src and set it to NULL */
         NPY_DT_DBG_REFTRACE("dec src ref (null dst)", src_ref);
         memcpy(&src_ref, src, sizeof(src_ref));
-        Py_XDECREF(src_ref);
-        memset(src, 0, sizeof(PyObject *));
+        HPyField_Store(ctx, h_src, &src_ref, HPy_NULL);
+        memcpy(src, &src_ref, sizeof(src_ref));
 
         src += stride;
         --N;
