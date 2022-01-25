@@ -362,6 +362,8 @@ PyArray_FillWithScalar(PyArrayObject *arr, PyObject *obj)
     npy_longlong value_buffer[4];
     char *value = NULL;
     int retcode = 0;
+    HPyContext *ctx = npy_get_context();
+    HPyField dummy_field = HPyField_NULL;
 
     /*
      * If 'arr' is an object array, copy the object as is unless
@@ -371,10 +373,14 @@ PyArray_FillWithScalar(PyArrayObject *arr, PyObject *obj)
     if (PyArray_DESCR(arr)->type_num == NPY_OBJECT &&
                         !(PyArray_Check(obj) &&
                           PyArray_NDIM((PyArrayObject *)obj) == 0)) {
-        value = (char *)&obj;
+        HPy h_obj = HPy_FromPyObject(ctx, obj);
+        HPyField_Store(ctx, HPy_NULL, &dummy_field, h_obj);
+        HPy_Close(ctx, h_obj);
+        value = (char *)&dummy_field;
 
         dtype = PyArray_DescrFromType(NPY_OBJECT);
         if (dtype == NULL) {
+            HPyField_Store(ctx, HPy_NULL, &dummy_field, HPy_NULL);
             return -1;
         }
     }
@@ -473,6 +479,9 @@ PyArray_FillWithScalar(PyArrayObject *arr, PyObject *obj)
         retcode = PyArray_AssignRawScalar(arr, dtype, value,
                                 NULL, NPY_UNSAFE_CASTING);
         Py_DECREF(dtype);
+        if (!HPyField_IsNull(dummy_field)) {
+            HPyField_Store(ctx, HPy_NULL, &dummy_field, HPy_NULL);
+        }
         return retcode;
     }
     /* Otherwise convert to an array to do the assignment */
