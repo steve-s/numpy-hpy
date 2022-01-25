@@ -468,10 +468,6 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
         return -1;
     }
     _set_descr(dummy_arr, NULL);
-    if (PyDataType_REFCHK(tmp_descr)) {
-        /* We could probably use move-references above */
-        PyArray_Item_INCREF(data, tmp_descr);
-    }
 
     int res = 0;
     int needs_api = 0;
@@ -497,10 +493,6 @@ PyArray_Pack(PyArray_Descr *descr, char *item, PyObject *value)
     HPy_Close(ctx, h_dst);
 
   finish:
-    if (PyDataType_REFCHK(tmp_descr)) {
-        /* We could probably use move-references above */
-        PyArray_Item_XDECREF(data, tmp_descr);
-    }
     PyObject_Free(data);
     Py_DECREF(tmp_descr);
     return res;
