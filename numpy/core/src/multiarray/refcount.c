@@ -382,6 +382,13 @@ array_clear_hpyfields(HPyContext *ctx, HPy h_arr)
     return array_items_visit(fa, clear_fields_visitor, &args);
 }
 
+NPY_NO_EXPORT int
+array_clear_hpyfields_Item(HPyContext *ctx, HPy h_arr, char *data, PyArray_Descr *descr)
+{
+    clear_fields_args_t args = {ctx, h_arr};
+    return visit_item(data, descr, clear_fields_visitor, &args);
+}
+
 
 typedef struct {
     HPyContext *ctx;
@@ -412,6 +419,13 @@ array_fixup_hpyfields(HPyContext *ctx, HPy h_src, HPy h_dest)
     return array_items_visit(fa, fixup_fields_visitor, &args);
 }
 
+NPY_NO_EXPORT int
+array_fixup_hpyfields_Item(HPyContext *ctx, HPy h_src, HPy h_dest,
+        char *data, PyArray_Descr *descr)
+{
+    fixup_fields_args_t args = {ctx, h_src, h_dest};
+    return visit_item(data, descr, fixup_fields_visitor, &args);
+}
 
 /*NUMPY_API
  * Assumes contiguous
