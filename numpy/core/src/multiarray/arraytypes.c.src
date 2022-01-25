@@ -2713,23 +2713,31 @@ UNICODE_nonzero (npy_ucs4 *ip, PyArrayObject *ap)
 }
 
 static npy_bool
-OBJECT_nonzero (PyObject **ip, PyArrayObject *ap)
+OBJECT_nonzero (HPyField *ip, PyArrayObject *ap)
 {
-
+    HPyContext *ctx = npy_get_context();
+    HPy obj;
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)ap);
+    npy_bool ret;
     if (PyArray_ISALIGNED(ap)) {
-        if (*ip == NULL) {
+        if (HPyField_IsNull(*ip)) {
             return NPY_FALSE;
         }
-        return (npy_bool) PyObject_IsTrue(*ip);
+        obj = HPyField_Load(ctx, h_arr, *ip);
+        ret = (npy_bool) HPy_IsTrue(ctx, obj);
+        HPy_Close(ctx, obj);
     }
     else {
-        PyObject *obj;
-        memcpy(&obj, ip, sizeof(obj));
-        if (obj == NULL) {
+        HPyField tmp;
+        memcpy(&tmp, ip, sizeof(tmp));
+        if (HPyField_IsNull(tmp)) {
             return NPY_FALSE;
         }
-        return (npy_bool) PyObject_IsTrue(obj);
+        obj = HPyField_Load(ctx, h_arr, tmp);
+        ret = (npy_bool) HPy_IsTrue(ctx, obj);
+        HPy_Close(ctx, obj);
     }
+    return ret;
 }
 
 /*
@@ -2990,7 +2998,7 @@ HALF_compare (npy_half *pa, npy_half *pb, PyArrayObject *NPY_UNUSED(ap))
 /* object type */
 
 static int
-OBJECT_compare(PyObject **ip1, PyObject **ip2, PyArrayObject *NPY_UNUSED(ap))
+OBJECT_compare(HPyField *ip1, HPyField *ip2, PyArrayObject *ap)
 {
     /*
      * ALIGNMENT NOTE: It seems that PyArray_Sort is already handling
@@ -2998,6 +3006,9 @@ OBJECT_compare(PyObject **ip1, PyObject **ip2, PyArrayObject *NPY_UNUSED(ap))
      * here.
      */
 
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)ap);
+    HPy in1, in2;
     int ret;
     /*
      * work around gh-3879, we cannot abort an in-progress quicksort
@@ -3006,17 +3017,20 @@ OBJECT_compare(PyObject **ip1, PyObject **ip2, PyArrayObject *NPY_UNUSED(ap))
     if (PyErr_Occurred()) {
         return 0;
     }
-    if ((*ip1 == NULL) || (*ip2 == NULL)) {
-        if (ip1 == ip2) {
-            return 1;
-        }
-        if (ip1 == NULL) {
-            return -1;
-        }
+    if (HPy_IsNull(*ip1) && HPy_IsNull(*ip2)) {
+        return 1;  // Huh???
+    }
+    else if (HPy_IsNull(*ip1)) {
+        return -1;
+    }
+    else if (HPy_IsNull(*ip2)) {
         return 1;
     }
 
-    ret = PyObject_RichCompareBool(*ip1, *ip2, Py_LT);
+    in1 = HPyField_Load(ctx, h_arr, *ip1);
+    in2 = HPyField_Load(ctx, h_arr, *ip2);
+
+    ret = HPy_RichCompareBool(ctx, in1, in2, Py_LT);
     if (ret < 0) {
         /* error occurred, avoid the next call to PyObject_RichCompareBool */
         return 0;
@@ -3024,7 +3038,7 @@ OBJECT_compare(PyObject **ip1, PyObject **ip2, PyArrayObject *NPY_UNUSED(ap))
     if (ret == 1) {
         return -1;
     }
-    else if (PyObject_RichCompareBool(*ip1, *ip2, Py_GT) == 1) {
+    else if (HPy_RichCompareBool(ctx, in1, in2, Py_GT) == 1) {
         return 1;
     }
     else {
@@ -3776,37 +3790,41 @@ OBJECT_dot(char *ip1, npy_intp is1, char *ip2, npy_intp is2, char *op, npy_intp 
      * handled here.
      */
     npy_intp i;
-    PyObject *tmp1, *tmp2, *tmp = NULL;
-    PyObject **tmp3;
+    HPy tmp1, new_sum, sum = HPy_NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy h_in1, h_in2;
     for (i = 0; i < n; i++, ip1 += is1, ip2 += is2) {
-        if ((*((PyObject **)ip1) == NULL) || (*((PyObject **)ip2) == NULL)) {
-            tmp1 = Py_False;
-            Py_INCREF(Py_False);
+        if (HPyField_IsNull(*(HPyField *)ip1) || HPyField_IsNull(*(HPyField *)ip2)) {
+            tmp1 = HPy_Dup(ctx, ctx->h_False);
         }
         else {
-            tmp1 = PyNumber_Multiply(*((PyObject **)ip1), *((PyObject **)ip2));
-            if (!tmp1) {
-                Py_XDECREF(tmp);
+            h_in1 = HPyField_Load(ctx, HPy_NULL, *(HPyField *)ip1);
+            h_in2 = HPyField_Load(ctx, HPy_NULL, *(HPyField *)ip2);
+            tmp1 = HPy_Multiply(ctx, h_in1, h_in2);
+            HPy_Close(ctx, h_in1);
+            HPy_Close(ctx, h_in2);
+            if (HPy_IsNull(tmp1)) {
+                if (!HPy_IsNull(sum)) {
+                    HPy_Close(ctx, sum);
+                }
                 return;
             }
         }
         if (i == 0) {
-            tmp = tmp1;
+            sum = tmp1;
         }
         else {
-            tmp2 = PyNumber_Add(tmp, tmp1);
-            Py_XDECREF(tmp);
-            Py_XDECREF(tmp1);
-            if (!tmp2) {
+            new_sum = HPy_Add(ctx, sum, tmp1);
+            HPy_Close(ctx, sum);
+            HPy_Close(ctx, tmp1);
+            if (HPy_IsNull(new_sum)) {
                 return;
             }
-            tmp = tmp2;
+            sum = new_sum;
         }
     }
-    tmp3 = (PyObject**) op;
-    tmp2 = *tmp3;
-    *((PyObject **)op) = tmp;
-    Py_XDECREF(tmp2);
+    HPyField_Store(ctx, HPy_NULL, (HPyField *)op, sum);
+    HPy_Close(ctx, sum);
 }
 
 
