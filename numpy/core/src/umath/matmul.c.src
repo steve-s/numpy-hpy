@@ -314,7 +314,7 @@ NPY_NO_EXPORT void
 OBJECT_matmul_inner_noblas(void *_ip1, npy_intp is1_m, npy_intp is1_n,
                            void *_ip2, npy_intp is2_n, npy_intp is2_p,
                            void *_op, npy_intp os_m, npy_intp os_p,
-                           npy_intp dm, npy_intp dn, npy_intp dp)                         
+                           npy_intp dm, npy_intp dn, npy_intp dp)
 {
     char *ip1 = (char *)_ip1, *ip2 = (char *)_ip2, *op = (char *)_op;
 
@@ -323,29 +323,34 @@ OBJECT_matmul_inner_noblas(void *_ip1, npy_intp is1_m, npy_intp is1_n,
     npy_intp ib2_p = is2_p * dp;
     npy_intp ob_p  = os_p * dp;
 
-    PyObject *product, *sum_of_products = NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy product, sum_of_products = HPy_NULL;
 
     for (npy_intp m = 0; m < dm; m++) {
         for (npy_intp p = 0; p < dp; p++) {
             if ( 0 == dn ) {
-                sum_of_products = PyLong_FromLong(0);
-                if (sum_of_products == NULL) {
+                sum_of_products = HPyLong_FromLong(ctx, 0);
+                if (HPy_IsNull(sum_of_products)) {
+                    HPy_Close(ctx, sum_of_products);
                     return;
                 }
             }
 
             for (npy_intp n = 0; n < dn; n++) {
-                PyObject *obj1 = *(PyObject**)ip1, *obj2 = *(PyObject**)ip2;
-                if (obj1 == NULL) {
-                    obj1 = Py_None;
+                HPy obj1 = HPyField_Load(ctx, HPy_NULL, *(HPyField *)ip1);
+                if (HPy_IsNull(obj1)) {
+                    obj1 = HPy_Dup(ctx, ctx->h_None);
                 }
-                if (obj2 == NULL) {
-                    obj2 = Py_None;
+                HPy obj2 = HPyField_Load(ctx, HPy_NULL, *(HPyField *)ip2);
+                if (HPy_IsNull(obj2)) {
+                    obj2 = HPy_Dup(ctx, ctx->h_None);
                 }
 
-                product = PyNumber_Multiply(obj1, obj2);
-                if (product == NULL) {
-                    Py_XDECREF(sum_of_products);
+                product = HPy_Multiply(ctx, obj1, obj2);
+                HPy_Close(ctx, obj1);
+                HPy_Close(ctx, obj2);
+                if (HPy_IsNull(product)) {
+                    HPy_Close(ctx, sum_of_products);
                     return;
                 }
 
@@ -353,18 +358,21 @@ OBJECT_matmul_inner_noblas(void *_ip1, npy_intp is1_m, npy_intp is1_n,
                     sum_of_products = product;
                 }
                 else {
-                    Py_SETREF(sum_of_products, PyNumber_Add(sum_of_products, product));
-                    Py_DECREF(product);
-                    if (sum_of_products == NULL) {
+                    HPy tmp = HPy_Add(ctx, sum_of_products, product);
+                    HPy_Close(ctx, product);
+                    HPy_Close(ctx, sum_of_products);
+                    if (HPy_IsNull(tmp)) {
                         return;
                     }
+                    sum_of_products = tmp;
                 }
 
                 ip2 += is2_n;
                 ip1 += is1_n;
             }
 
-            *((PyObject **)op) = sum_of_products;
+            HPyField_Store(ctx, HPy_NULL, (HPyField *)op, sum_of_products);
+            HPy_Close(ctx, sum_of_products);
             ip1 -= ib1_n;
             ip2 -= ib2_n;
             op  +=  os_p;
