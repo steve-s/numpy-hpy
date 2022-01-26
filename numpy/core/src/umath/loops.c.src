@@ -352,8 +352,10 @@ PyUFunc_On_Om(char **args, npy_intp const *dimensions, npy_intp const *steps, vo
     PyObject *tocall = data->callable;
     char *ptrs[NPY_MAXARGS];
     PyObject *arglist, *result;
-    PyObject *in, **op;
+    PyObject *in;
+    HPyField *op;
     npy_intp i, j, ntot;
+    HPyContext *ctx = npy_get_context();
 
     ntot = nin+nout;
 
@@ -366,12 +368,8 @@ PyUFunc_On_Om(char **args, npy_intp const *dimensions, npy_intp const *steps, vo
             return;
         }
         for(j = 0; j < nin; j++) {
-            in = *((PyObject **)ptrs[j]);
-            if (in == NULL) {
-                in = Py_None;
-            }
+            in = npy_hf2py(ctx, *((HPyField *)ptrs[j]));
             PyTuple_SET_ITEM(arglist, j, in);
-            Py_INCREF(in);
         }
         result = PyObject_CallObject(tocall, arglist);
         Py_DECREF(arglist);
@@ -384,9 +382,8 @@ PyUFunc_On_Om(char **args, npy_intp const *dimensions, npy_intp const *steps, vo
         }
         else if (nout == 1) {
             /* Single output expected, assign and continue */
-            op = (PyObject **)ptrs[nin];
-            Py_XDECREF(*op);
-            *op = result;
+            op = (HPyField *)ptrs[nin];
+            npy_store_py(ctx, op, result);
         }
         else if (PyTuple_Check(result) && nout == PyTuple_Size(result)) {
             /*
@@ -394,10 +391,10 @@ PyUFunc_On_Om(char **args, npy_intp const *dimensions, npy_intp const *steps, vo
              * and continue. Will also gobble empty tuples if nout == 0.
              */
             for(j = 0; j < nout; j++) {
-                op = (PyObject **)ptrs[j+nin];
-                Py_XDECREF(*op);
-                *op = PyTuple_GET_ITEM(result, j);
-                Py_INCREF(*op);
+                op = (HPyField *)ptrs[j+nin];
+                PyObject *tmp = PyTuple_GET_ITEM(result, j);
+                Py_INCREF(tmp);
+                npy_store_py(ctx, op, tmp);
             }
             Py_DECREF(result);
         }
