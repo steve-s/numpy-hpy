@@ -31,7 +31,7 @@ _attempt_nocopy_reshape(PyArrayObject *self, int newnd, const npy_intp *newdims,
                         npy_intp *newstrides, int is_f_order);
 
 static void
-_putzero(char *optr, PyObject *zero, PyArray_Descr *dtype);
+_putzero(HPyContext *ctx, HPy h_arr, char *optr, HPy zero, PyArray_Descr *dtype);
 
 /*NUMPY_API
  * Resize (reallocate data).  Only works if nothing else is referencing this
@@ -142,15 +142,18 @@ PyArray_Resize(PyArrayObject *self, PyArray_Dims *newshape, int refcheck,
     if (newnbytes > oldnbytes && PyArray_ISWRITEABLE(self)) {
         /* Fill new memory with zeros */
         if (PyDataType_FLAGCHK(PyArray_DESCR(self), NPY_ITEM_REFCOUNT)) {
-            PyObject *zero = PyLong_FromLong(0);
+            HPyContext *ctx = npy_get_context();
+            HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
+            HPy zero = HPyLong_FromLong(ctx, 0);
             char *optr;
             optr = PyArray_BYTES(self) + oldnbytes;
             npy_intp n_new = newsize - oldsize;
             for (npy_intp i = 0; i < n_new; i++) {
-                _putzero((char *)optr, zero, PyArray_DESCR(self));
+                _putzero(ctx, h_self, (char *)optr, zero, PyArray_DESCR(self));
                 optr += elsize;
             }
-            Py_DECREF(zero);
+            HPy_Close(ctx, zero);
+            HPy_Close(ctx, h_self);
         }
         else{
             memset(PyArray_BYTES(self) + oldnbytes, 0, newnbytes - oldnbytes);
@@ -315,7 +318,7 @@ PyArray_Reshape(PyArrayObject *self, PyObject *shape)
 
 
 static void
-_putzero(char *optr, PyObject *zero, PyArray_Descr *dtype)
+_putzero(HPyContext *ctx, HPy h_arr, char *optr, HPy zero, PyArray_Descr *dtype)
 {
     if (!PyDataType_FLAGCHK(dtype, NPY_ITEM_REFCOUNT)) {
         memset(optr, 0, dtype->elsize);
@@ -332,17 +335,19 @@ _putzero(char *optr, PyObject *zero, PyArray_Descr *dtype)
             if (!PyArg_ParseTuple(value, "Oi|O", &new, &offset, &title)) {
                 return;
             }
-            _putzero(optr + offset, zero, new);
+            _putzero(ctx, h_arr, optr + offset, zero, new);
         }
     }
     else {
         npy_intp i;
-        npy_intp nsize = dtype->elsize / sizeof(zero);
+        HPyField tmp;
+        npy_intp nsize = dtype->elsize / sizeof(tmp);
 
         for (i = 0; i < nsize; i++) {
-            Py_INCREF(zero);
-            memcpy(optr, &zero, sizeof(zero));
-            optr += sizeof(zero);
+            tmp = HPyField_NULL;
+            HPyField_Store(ctx, h_arr, &tmp, zero);
+            memcpy(optr, &tmp, sizeof(tmp));
+            optr += sizeof(tmp);
         }
     }
     return;
