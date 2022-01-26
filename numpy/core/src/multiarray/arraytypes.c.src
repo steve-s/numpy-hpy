@@ -3456,34 +3456,45 @@ static int
 #undef _LESS_THAN_OR_EQUAL
 
 static int
-OBJECT_argmax(PyObject **ip, npy_intp n, npy_intp *max_ind,
-              PyArrayObject *NPY_UNUSED(aip))
+OBJECT_argmax(HPyField *ip, npy_intp n, npy_intp *max_ind,
+              PyArrayObject *aip)
 {
     npy_intp i;
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)aip);
 
     *max_ind = 0;
     /* Skip over all leading NULL entries */
-    for (i = 0; i < n && ip[i] == NULL; ++i);
+    for (i = 0; i < n && HPyField_IsNull(ip[i]); ++i);
     if (i < n) {
         /* Found first non-NULL entry */
-        PyObject *mp = ip[i];
+        HPy mp = HPyField_Load(ctx, h_arr, ip[i]);
         *max_ind = i;
         for (i = i + 1; i < n; ++i) {
-            PyObject *val = ip[i];
-            if (val != NULL) {
-                int greater_than = PyObject_RichCompareBool(val, mp, Py_GT);
+            if (!HPyField_IsNull(ip[i])) {
+                HPy val = HPyField_Load(ctx, h_arr, ip[i]);
+                int greater_than = HPy_RichCompareBool(ctx, val, mp, Py_GT);
 
                 if (greater_than < 0) {
+                    HPy_Close(ctx, val);
+                    HPy_Close(ctx, mp);
+                    HPy_Close(ctx, h_arr);
                     return 0;
                 }
                 if (greater_than) {
+                    HPy_Close(ctx, mp);
                     mp = val;
                     *max_ind = i;
                 }
+                else {
+                    HPy_Close(ctx, val);
+                }
             }
         }
+        HPy_Close(ctx, mp);
     }
 
+    HPy_Close(ctx, h_arr);
     return 0;
 }
 
@@ -3520,34 +3531,45 @@ static int
 #define VOID_argmax NULL
 
 static int
-OBJECT_argmin(PyObject **ip, npy_intp n, npy_intp *min_ind,
-              PyArrayObject *NPY_UNUSED(aip))
+OBJECT_argmin(HPyField *ip, npy_intp n, npy_intp *min_ind,
+              PyArrayObject *aip)
 {
     npy_intp i;
+    HPyContext *ctx = npy_get_context();
+    HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)aip);
 
     *min_ind = 0;
     /* Skip over all leading NULL entries */
-    for (i = 0; i < n && ip[i] == NULL; ++i);
+    for (i = 0; i < n && HPyField_IsNull(ip[i]); ++i);
     if (i < n) {
         /* Found first non-NULL entry */
-        PyObject *mp = ip[i];
+        HPy mp = HPyField_Load(ctx, h_arr, ip[i]);
         *min_ind = i;
         for (i = i + 1; i < n ; ++i) {
-            PyObject *val = ip[i];
-            if (val != NULL) {
-                int less_than = PyObject_RichCompareBool(val, mp, Py_LT);
+            if (!HPyField_IsNull(ip[i])) {
+                HPy val = HPyField_Load(ctx, h_arr, ip[i]);
+                int less_than = HPy_RichCompareBool(ctx, val, mp, Py_LT);
 
                 if (less_than < 0) {
+                    HPy_Close(ctx, val);
+                    HPy_Close(ctx, mp);
+                    HPy_Close(ctx, h_arr);
                     return 0;
                 }
                 if (less_than) {
+                    HPy_Close(ctx, mp);
                     mp = val;
                     *min_ind = i;
                 }
+                else {
+                    HPy_Close(ctx, val);
+                }
             }
         }
+        HPy_Close(ctx, mp);
     }
 
+    HPy_Close(ctx, h_arr);
     return 0;
 }
 
