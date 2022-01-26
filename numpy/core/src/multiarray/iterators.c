@@ -1547,12 +1547,21 @@ NPY_NO_EXPORT PyTypeObject PyArrayMultiIter_Type = {
 
 static void neighiter_dealloc(PyArrayNeighborhoodIterObject* iter);
 
+static NPY_INLINE void
+_set_constant_field(HPyContext *ctx, char *ret, HPy obj)
+{
+    HPyField tmp = HPyField_NULL;
+    HPyField_Store(ctx, HPy_NULL, &tmp, obj);
+    memcpy(ret, &tmp, sizeof(tmp));
+}
+
 static char* _set_constant(PyArrayNeighborhoodIterObject* iter,
         PyArrayObject *fill)
 {
     char *ret;
     PyArrayIterObject *ar = iter->_internal_iter;
     int storeflags, st;
+    HPyContext *ctx = npy_get_context();
 
     ret = PyDataMem_NEW(PyArray_DESCR(ar->ao)->elsize);
     if (ret == NULL) {
@@ -1561,8 +1570,11 @@ static char* _set_constant(PyArrayNeighborhoodIterObject* iter,
     }
 
     if (PyArray_ISOBJECT(ar->ao)) {
-        memcpy(ret, PyArray_DATA(fill), sizeof(PyObject*));
-        Py_INCREF(*(PyObject**)ret);
+        HPy h_fill = HPy_FromPyObject(ctx, (PyObject *)fill);
+        HPy h_obj = HPyField_Load(ctx, h_fill, *(HPyField *)PyArray_DATA(fill));
+        HPy_Close(ctx, h_fill);
+        _set_constant_field(ctx, ret, h_obj);
+        HPy_Close(ctx, h_obj);
     } else {
         /* Non-object types */
 
@@ -1702,6 +1714,7 @@ PyArray_NeighborhoodIterNew(PyArrayIterObject *x, const npy_intp *bounds,
 {
     int i;
     PyArrayNeighborhoodIterObject *ret;
+    HPyContext *ctx = npy_get_context();
 
     ret = PyArray_malloc(sizeof(*ret));
     if (ret == NULL) {
@@ -1744,12 +1757,34 @@ PyArray_NeighborhoodIterNew(PyArrayIterObject *x, const npy_intp *bounds,
 
     switch (mode) {
         case NPY_NEIGHBORHOOD_ITER_ZERO_PADDING:
-            ret->constant = PyArray_Zero(x->ao);
+            if (PyArray_ISOBJECT(x->ao)) {
+                ret->constant = PyDataMem_NEW(sizeof(HPyField));
+                if (ret->constant == NULL) {
+                    goto clean_x;
+                }
+                HPy zero = HPyLong_FromLong(ctx, 0);
+                _set_constant_field(ctx, ret->constant, zero);
+                HPy_Close(ctx, zero);
+            }
+            else {
+                ret->constant = PyArray_Zero(x->ao);
+            }
             ret->mode = mode;
             ret->translate = &get_ptr_constant;
             break;
         case NPY_NEIGHBORHOOD_ITER_ONE_PADDING:
-            ret->constant = PyArray_One(x->ao);
+            if (PyArray_ISOBJECT(x->ao)) {
+                ret->constant = PyDataMem_NEW(sizeof(HPyField));
+                if (ret->constant == NULL) {
+                    goto clean_x;
+                }
+                HPy one = HPyLong_FromLong(ctx, 1);
+                _set_constant_field(ctx, ret->constant, one);
+                HPy_Close(ctx, one);
+            }
+            else {
+                ret->constant = PyArray_One(x->ao);
+            }
             ret->mode = mode;
             ret->translate = &get_ptr_constant;
             break;
@@ -1798,10 +1833,9 @@ clean_x:
 
 static void neighiter_dealloc(PyArrayNeighborhoodIterObject* iter)
 {
-    if (iter->mode == NPY_NEIGHBORHOOD_ITER_CONSTANT_PADDING) {
-        if (PyArray_ISOBJECT(iter->_internal_iter->ao)) {
-            Py_DECREF(*(PyObject**)iter->constant);
-        }
+    HPyContext *ctx = npy_get_context();
+    if (PyArray_ISOBJECT(iter->_internal_iter->ao) && iter->constant != NULL) {
+        HPyField_Store(ctx, HPy_NULL, (HPyField *)iter->constant, HPy_NULL);
     }
     PyDataMem_FREE(iter->constant);
     Py_DECREF(iter->_internal_iter);
