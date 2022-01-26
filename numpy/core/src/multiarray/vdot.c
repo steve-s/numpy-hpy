@@ -143,41 +143,59 @@ OBJECT_vdot(char *ip1, npy_intp is1, char *ip2, npy_intp is2, char *op, npy_intp
             void *NPY_UNUSED(ignore))
 {
     npy_intp i;
-    PyObject *tmp0, *tmp1, *tmp2, *tmp = NULL;
-    PyObject **tmp3;
+    HPy tmp1, new_sum, sum = HPy_NULL;
+    HPyContext *ctx = npy_get_context();
+    HPy h_in1, h_in2;
     for (i = 0; i < n; i++, ip1 += is1, ip2 += is2) {
-        if ((*((PyObject **)ip1) == NULL) || (*((PyObject **)ip2) == NULL)) {
-            tmp1 = Py_False;
-            Py_INCREF(Py_False);
+        if (HPyField_IsNull(*(HPyField *)ip1) || HPyField_IsNull(*(HPyField *)ip2)) {
+            tmp1 = HPy_Dup(ctx, ctx->h_False);
         }
         else {
-            tmp0 = PyObject_CallMethod(*((PyObject **)ip1), "conjugate", NULL);
-            if (tmp0 == NULL) {
-                Py_XDECREF(tmp);
-                return;
+            h_in1 = HPyField_Load(ctx, HPy_NULL, *(HPyField *)ip1);
+            HPy method = HPy_GetAttr_s(ctx, h_in1, "conjugate");
+            HPy_Close(ctx, h_in1);
+            if (HPy_IsNull(method)) {
+                goto error;
             }
-            tmp1 = PyNumber_Multiply(tmp0, *((PyObject **)ip2));
-            Py_DECREF(tmp0);
-            if (tmp1 == NULL) {
-                Py_XDECREF(tmp);
-                return;
+            HPy args = HPyTuple_Pack(ctx, 0);
+            if (HPy_IsNull(args)) {
+                HPy_Close(ctx, method);
+                goto error;
+            }
+            HPy tmp0 = HPy_CallTupleDict(ctx, method, args, HPy_NULL);
+            HPy_Close(ctx, method);
+            HPy_Close(ctx, args);
+            if (HPy_IsNull(tmp0)) {
+                goto error;
+            }
+            h_in2 = HPyField_Load(ctx, HPy_NULL, *(HPyField *)ip2);
+            tmp1 = HPy_Multiply(ctx, tmp0, h_in2);
+            HPy_Close(ctx, h_in2);
+            HPy_Close(ctx, tmp0);
+            if (HPy_IsNull(tmp1)) {
+                goto error;
             }
         }
         if (i == 0) {
-            tmp = tmp1;
+            sum = tmp1;
         }
         else {
-            tmp2 = PyNumber_Add(tmp, tmp1);
-            Py_XDECREF(tmp);
-            Py_XDECREF(tmp1);
-            if (tmp2 == NULL) {
+            new_sum = HPy_Add(ctx, sum, tmp1);
+            HPy_Close(ctx, sum);
+            HPy_Close(ctx, tmp1);
+            if (HPy_IsNull(new_sum)) {
                 return;
             }
-            tmp = tmp2;
+            sum = new_sum;
         }
     }
-    tmp3 = (PyObject**) op;
-    tmp2 = *tmp3;
-    *((PyObject **)op) = tmp;
-    Py_XDECREF(tmp2);
+    HPyField_Store(ctx, HPy_NULL, (HPyField *)op, sum);
+    HPy_Close(ctx, sum);
+    return;
+
+error:
+    if (!HPy_IsNull(sum)) {
+        HPy_Close(ctx, sum);
+    }
+    return;
 }
