@@ -1580,12 +1580,6 @@ static char* _set_constant(PyArrayNeighborhoodIterObject* iter,
     return ret;
 }
 
-#define _INF_SET_PTR(c) \
-    bd = coordinates[c] + p->coordinates[c]; \
-    if (bd < p->limits[c][0] || bd > p->limits[c][1]) { \
-        return niter->constant; \
-    } \
-    _coordinates[c] = bd;
 
 /* set the dataptr from its current coordinates */
 static char*
@@ -1597,12 +1591,15 @@ get_ptr_constant(PyArrayIterObject* _iter, const npy_intp *coordinates)
     PyArrayIterObject *p = niter->_internal_iter;
 
     for(i = 0; i < niter->nd; ++i) {
-        _INF_SET_PTR(i)
+        bd = coordinates[i] + p->coordinates[i];
+        if (bd < p->limits[i][0] || bd > p->limits[i][1]) {
+            return niter->constant;
+        }
+        _coordinates[i] = bd;
     }
 
     return p->translate(p, _coordinates);
 }
-#undef _INF_SET_PTR
 
 #define _NPY_IS_EVEN(x) ((x) % 2 == 0)
 
