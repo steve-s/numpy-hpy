@@ -354,6 +354,9 @@ PyArray_PutTo(PyArrayObject *self, PyObject* values0, PyObject *indices0,
     char *src, *dest;
     int copied = 0;
     int overlap = 0;
+    HPyContext *ctx = npy_get_context();
+    HPy h_self = HPy_NULL;
+    HPy h_values = HPy_NULL;
 
     indices = NULL;
     values = NULL;
@@ -401,8 +404,10 @@ PyArray_PutTo(PyArrayObject *self, PyObject* values0, PyObject *indices0,
     max_item = PyArray_SIZE(self);
     dest = PyArray_DATA(self);
     chunk = PyArray_DESCR(self)->elsize;
-
+    PyArray_Descr *dtype = PyArray_DESCR(self);
     if (PyDataType_REFCHK(PyArray_DESCR(self))) {
+        h_self = HPy_FromPyObject(ctx, (PyObject *)self);
+        h_values = HPy_FromPyObject(ctx, (PyObject *)values);
         switch(clipmode) {
         case NPY_RAISE:
             for (i = 0; i < ni; i++) {
@@ -411,9 +416,12 @@ PyArray_PutTo(PyArrayObject *self, PyObject* values0, PyObject *indices0,
                 if (check_and_adjust_index(&tmp, max_item, 0, NULL) < 0) {
                     goto fail;
                 }
-                PyArray_Item_INCREF(src, PyArray_DESCR(self));
-                PyArray_Item_XDECREF(dest+tmp*chunk, PyArray_DESCR(self));
-                memmove(dest + tmp*chunk, src, chunk);
+                // XXX: the old value of the field should stay
+                // alive until AFTER the move
+                char *target = dest + tmp*chunk;
+                array_clear_hpyfields_Item(ctx, h_self, target, dtype);
+                memmove(target, src, chunk);
+                array_fixup_hpyfields_Item(ctx, h_values, h_self, target, dtype);
             }
             break;
         case NPY_WRAP:
@@ -430,9 +438,12 @@ PyArray_PutTo(PyArrayObject *self, PyObject* values0, PyObject *indices0,
                         tmp -= max_item;
                     }
                 }
-                PyArray_Item_INCREF(src, PyArray_DESCR(self));
-                PyArray_Item_XDECREF(dest+tmp*chunk, PyArray_DESCR(self));
-                memmove(dest + tmp * chunk, src, chunk);
+                // XXX: the old value of the field should stay
+                // alive until AFTER the move
+                char *target = dest + tmp*chunk;
+                array_clear_hpyfields_Item(ctx, h_self, target, dtype);
+                memmove(target, src, chunk);
+                array_fixup_hpyfields_Item(ctx, h_values, h_self, target, dtype);
             }
             break;
         case NPY_CLIP:
@@ -445,9 +456,12 @@ PyArray_PutTo(PyArrayObject *self, PyObject* values0, PyObject *indices0,
                 else if (tmp >= max_item) {
                     tmp = max_item - 1;
                 }
-                PyArray_Item_INCREF(src, PyArray_DESCR(self));
-                PyArray_Item_XDECREF(dest+tmp*chunk, PyArray_DESCR(self));
-                memmove(dest + tmp * chunk, src, chunk);
+                // XXX: the old value of the field should stay
+                // alive until AFTER the move
+                char *target = dest + tmp*chunk;
+                array_clear_hpyfields_Item(ctx, h_self, target, dtype);
+                memmove(target, src, chunk);
+                array_fixup_hpyfields_Item(ctx, h_values, h_self, target, dtype);
             }
             break;
         }
@@ -501,6 +515,12 @@ PyArray_PutTo(PyArrayObject *self, PyObject* values0, PyObject *indices0,
     }
 
  finish:
+    if (!HPy_IsNull(h_self)) {
+        HPy_Close(ctx, h_self);
+    }
+    if (!HPy_IsNull(h_values)) {
+        HPy_Close(ctx, h_values);
+    }
     Py_XDECREF(values);
     Py_XDECREF(indices);
     if (copied) {
