@@ -2806,7 +2806,14 @@ array_complex(PyArrayObject *self, PyObject *NPY_UNUSED(args))
         PyObject *args, *res;
 
         Py_DECREF(dtype);
-        args = Py_BuildValue("(O)", *((PyObject**)PyArray_DATA(self)));
+        HPyContext *ctx = npy_get_context();
+        HPy h_self = HPy_FromPyObject(ctx, (PyObject*)self);
+        HPy h_obj = HPyField_Load(ctx, h_self, *(HPyField *)PyArray_DATA(self));
+        HPy_Close(ctx, h_self);
+        PyObject *obj = HPy_AsPyObject(ctx, h_obj);
+        HPy_Close(ctx, h_obj);
+        args = Py_BuildValue("(O)", obj);
+        Py_DECREF(obj);
         if (args == NULL) {
             return NULL;
         }
