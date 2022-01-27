@@ -1611,8 +1611,9 @@ array_searchsorted(PyArrayObject *self,
 }
 
 static void
-_deepcopy_call(char *iptr, char *optr, PyArray_Descr *dtype,
-               PyObject *deepcopy, PyObject *visit)
+_deepcopy_call(HPyContext *ctx, HPy h_arr,
+        char *data, PyArray_Descr *dtype,
+               HPy deepcopy, HPy visit)
 {
     if (!PyDataType_REFCHK(dtype)) {
         return;
@@ -1630,21 +1631,27 @@ _deepcopy_call(char *iptr, char *optr, PyArray_Descr *dtype,
                                   &title)) {
                 return;
             }
-            _deepcopy_call(iptr + offset, optr + offset, new,
+            _deepcopy_call(ctx, h_arr, data + offset, new,
                            deepcopy, visit);
         }
     }
     else {
-        PyObject *itemp, *otemp;
-        PyObject *res;
-        memcpy(&itemp, iptr, sizeof(itemp));
-        memcpy(&otemp, optr, sizeof(otemp));
-        Py_XINCREF(itemp);
+        HPyField temp;
+        memcpy(&temp, data, sizeof(temp));
+        HPy h_i = HPyField_Load(ctx, h_arr, temp);
+
         /* call deepcopy on this argument */
-        res = PyObject_CallFunctionObjArgs(deepcopy, itemp, visit, NULL);
-        Py_XDECREF(itemp);
-        Py_XDECREF(otemp);
-        memcpy(optr, &res, sizeof(res));
+        HPy args = HPyTuple_Pack(ctx, 2, h_i, visit);
+        if (HPy_IsNull(args)) {
+            HPy_Close(ctx, h_i);
+            return;
+        }
+        HPy h_o = HPy_CallTupleDict(ctx, deepcopy, args, HPy_NULL);
+
+        HPyField_Store(ctx, h_arr, &temp, h_o);
+        HPy_Close(ctx, h_o);
+        memcpy(data, &temp, sizeof(temp));
+        HPy_Close(ctx, h_i);
     }
 
 }
@@ -1653,6 +1660,7 @@ _deepcopy_call(char *iptr, char *optr, PyArray_Descr *dtype,
 static PyObject *
 array_deepcopy(PyArrayObject *self, PyObject *args)
 {
+    HPyContext *ctx = npy_get_context();
     PyArrayObject *copied_array;
     PyObject *visit;
     NpyIter *iter;
@@ -1707,16 +1715,20 @@ array_deepcopy(PyArrayObject *self, PyObject *args)
             strideptr = NpyIter_GetInnerStrideArray(iter);
             innersizeptr = NpyIter_GetInnerLoopSizePtr(iter);
 
+            HPy h_arr = HPy_FromPyObject(ctx, (PyObject *)copied_array);
+            HPy h_deepcopy = HPy_FromPyObject(ctx, deepcopy);
+            HPy h_visit = HPy_FromPyObject(ctx, visit);
             do {
                 data = *dataptr;
                 stride = *strideptr;
                 count = *innersizeptr;
                 while (count--) {
-                    _deepcopy_call(data, data, PyArray_DESCR(copied_array),
-                                   deepcopy, visit);
+                    _deepcopy_call(ctx, h_arr, data, PyArray_DESCR(copied_array),
+                                   h_deepcopy, h_visit);
                     data += stride;
                 }
             } while (iternext(iter));
+            HPy_Close(ctx, h_arr);
         }
         NpyIter_Deallocate(iter);
         Py_DECREF(deepcopy);
