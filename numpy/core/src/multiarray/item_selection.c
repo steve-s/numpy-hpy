@@ -208,10 +208,12 @@ NPY_NO_EXPORT PyObject *
 PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
                  PyArrayObject *out, NPY_CLIPMODE clipmode)
 {
+    HPyContext *ctx = npy_get_context();
     PyArray_Descr *dtype;
     PyArrayObject *obj = NULL, *self, *indices;
     npy_intp nd, i, n, m, max_item, chunk, itemsize, nelem;
     npy_intp shape[NPY_MAXDIMS];
+    HPy h_self, h_obj = HPy_NULL;
 
     indices = NULL;
     self = (PyArrayObject *)PyArray_CheckAxis(self0, &axis,
@@ -219,6 +221,7 @@ PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
     if (self == NULL) {
         return NULL;
     }
+    h_self = HPy_FromPyObject(ctx, (PyObject *)self);
     indices = (PyArrayObject *)PyArray_ContiguousFromAny(indices0,
                                                          NPY_INTP,
                                                          0, 0);
@@ -295,9 +298,7 @@ PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
     char *src = PyArray_DATA(self);
     char *dest = PyArray_DATA(obj);
     npy_intp *indices_data = (npy_intp *)PyArray_DATA(indices);
-    HPyContext *ctx = npy_get_context();
-    HPy h_self = HPy_FromPyObject(ctx, self);
-    HPy h_obj = HPy_FromPyObject(ctx, obj);
+    h_obj = HPy_FromPyObject(ctx, (PyObject *)obj);
     HPy_info hpy_info = {ctx, h_self, h_obj};
     HPy_info *hpy_info_ptr;
     if (PyDataType_REFCHK(PyArray_DESCR(self))) {
@@ -334,7 +335,9 @@ PyArray_TakeFrom(PyArrayObject *self0, PyObject *indices0, int axis,
 
  fail:
     HPy_Close(ctx, h_self);
-    HPy_Close(ctx, h_obj);
+    if (!HPy_IsNull(h_obj)) {
+        HPy_Close(ctx, h_obj);
+    }
     PyArray_DiscardWritebackIfCopy(obj);
     Py_XDECREF(obj);
     Py_XDECREF(indices);
