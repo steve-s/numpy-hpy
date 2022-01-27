@@ -17,6 +17,7 @@
 #include "nditer_impl.h"
 #include "templ_common.h"
 #include "ctors.h"
+#include "refcount.h"
 
 /* Internal helper functions private to this file */
 static npy_intp
@@ -2603,6 +2604,7 @@ npyiter_clear_buffers(NpyIter *iter)
 {
     int nop = iter->nop;
     NpyIter_BufferData *bufferdata = NIT_BUFFERDATA(iter);
+    HPyContext *ctx = npy_get_context();
 
     if (NBF_SIZE(bufferdata) == 0) {
         /* if the buffers are empty already, there is nothing to do */
@@ -2653,7 +2655,7 @@ npyiter_clear_buffers(NpyIter *iter)
              * See above comment, if this API is expanded the GIL assumption
              * could become incorrect.
              */
-            PyArray_Item_XDECREF(*buffers + (itemsize * i), dtypes[iop]);
+            array_clear_hpyfields_Item(ctx, HPy_NULL, *buffers + (itemsize * i), dtypes[iop]);
         }
         /* Clear out the buffer just to be sure */
         memset(*buffers, 0, NBF_SIZE(bufferdata) * itemsize);
