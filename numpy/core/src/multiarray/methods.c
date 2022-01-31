@@ -2134,7 +2134,6 @@ array_setstate(PyArrayObject *self, PyObject *args)
     }
     HPy h_arr = HPy_FromPyObject(ctx, (PyObject*)self);
     HPyArray_SetBase(ctx, h_arr, HPy_NULL);
-    HPy_Close(ctx, h_arr);
 
     PyArray_CLEARFLAGS(self, NPY_ARRAY_WRITEBACKIFCOPY);
 
@@ -2150,6 +2149,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
     if (nd > 0) {
         fa->dimensions = npy_alloc_cache_dim(2 * nd);
         if (fa->dimensions == NULL) {
+            HPy_Close(ctx, h_arr);
             return PyErr_NoMemory();
         }
         fa->strides = PyArray_DIMS(self) + nd;
@@ -2173,6 +2173,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
             PyObject *new_handler = PyDataMem_GetHandler();
             if (new_handler == NULL) {
                 HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
+                HPy_Close(ctx, h_arr);
                 Py_DECREF(rawdata);
                 return NULL;
             }
@@ -2184,6 +2185,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
             fa->data = PyDataMem_UserNEW(num, PyArray_HANDLER(self));
             if (PyArray_DATA(self) == NULL) {
                 HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
+                HPy_Close(ctx, h_arr);
                 Py_DECREF(rawdata);
                 return PyErr_NoMemory();
             }
@@ -2204,7 +2206,8 @@ array_setstate(PyArrayObject *self, PyObject *args)
                 else {
                     new_descr = PyArray_DescrNew(typecode);
                     if (new_descr == NULL) {
-                        Py_CLEAR(fa->mem_handler);
+                        HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
+                        HPy_Close(ctx, h_arr);
                         Py_DECREF(rawdata);
                         return NULL;
                     }
@@ -2229,6 +2232,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
             HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
             fa->data = datastr;
             if (PyArray_SetBaseObject(self, rawdata) < 0) {
+                HPy_Close(ctx, h_arr);
                 Py_DECREF(rawdata);
                 return NULL;
             }
@@ -2240,6 +2244,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
         /* Store the functions in case the default handler is modified */
         PyObject *new_handler = PyDataMem_GetHandler();
         if (new_handler == NULL) {
+            HPy_Close(ctx, h_arr);
             Py_DECREF(rawdata);
             return NULL;
         }
@@ -2251,6 +2256,8 @@ array_setstate(PyArrayObject *self, PyObject *args)
         fa->data = PyDataMem_UserNEW(num, PyArray_HANDLER(self));
         if (PyArray_DATA(self) == NULL) {
             HPyField_Store(ctx, h_arr, &fa->f_mem_handler, HPy_NULL);
+            HPy_Close(ctx, h_arr);
+            Py_DECREF(rawdata);
             return PyErr_NoMemory();
         }
         if (PyDataType_FLAGCHK(PyArray_DESCR(self), NPY_NEEDS_INIT)) {
@@ -2258,12 +2265,15 @@ array_setstate(PyArrayObject *self, PyObject *args)
         }
         PyArray_ENABLEFLAGS(self, NPY_ARRAY_OWNDATA);
         if (_setlist_pkl(self, rawdata) < 0) {
+            HPy_Close(ctx, h_arr);
+            Py_DECREF(rawdata);
             return NULL;
         }
     }
 
     PyArray_UpdateFlags(self, NPY_ARRAY_UPDATE_ALL);
 
+    HPy_Close(ctx, h_arr);
     Py_RETURN_NONE;
 }
 
