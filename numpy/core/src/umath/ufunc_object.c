@@ -3009,6 +3009,7 @@ static PyObject *
 PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
                    int axis, PyArray_DTypeMeta *signature[3])
 {
+    HPyContext *ctx = npy_get_context();
     PyArrayObject *op[2];
     int op_axes_arrays[2][NPY_MAXDIMS];
     int *op_axes[2] = {op_axes_arrays[0], op_axes_arrays[1]};
@@ -3250,14 +3251,9 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
              * the same memory, e.g. np.add.accumulate(a, out=a).
              */
             if (descrs[2]->type_num == NPY_OBJECT) {
-                /*
-                 * Incref before decref to avoid the possibility of the
-                 * reference count being zero temporarily.
-                 */
-                Py_XINCREF(*(PyObject **)dataptr_copy[1]);
-                Py_XDECREF(*(PyObject **)dataptr_copy[0]);
-                *(PyObject **)dataptr_copy[0] =
-                                    *(PyObject **)dataptr_copy[1];
+                HPy tmp = HPyField_Load(ctx, HPy_NULL, *(HPyField *)dataptr_copy[1]);
+                HPyField_Store(ctx, HPy_NULL, (HPyField *)dataptr_copy[0], tmp);
+                HPy_Close(ctx, tmp);
             }
             else {
                 memmove(dataptr_copy[0], dataptr_copy[1], itemsize);
@@ -3310,14 +3306,9 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
          * same memory, e.g. np.add.accumulate(a, out=a).
          */
         if (descrs[2]->type_num == NPY_OBJECT) {
-            /*
-             * Incref before decref to avoid the possibility of the
-             * reference count being zero temporarily.
-             */
-            Py_XINCREF(*(PyObject **)dataptr_copy[1]);
-            Py_XDECREF(*(PyObject **)dataptr_copy[0]);
-            *(PyObject **)dataptr_copy[0] =
-                                *(PyObject **)dataptr_copy[1];
+            HPy tmp = HPyField_Load(ctx, HPy_NULL, *(HPyField *)dataptr_copy[1]);
+            HPyField_Store(ctx, HPy_NULL, (HPyField *)dataptr_copy[0], tmp);
+            HPy_Close(ctx, tmp);
         }
         else {
             memmove(dataptr_copy[0], dataptr_copy[1], itemsize);
@@ -3403,6 +3394,7 @@ static PyObject *
 PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                  PyArrayObject *out, int axis, PyArray_DTypeMeta *signature[3])
 {
+    HPyContext *ctx = npy_get_context();
     PyArrayObject *op[3];
     int op_axes_arrays[3][NPY_MAXDIMS];
     int *op_axes[3] = {op_axes_arrays[0], op_axes_arrays[1],
@@ -3674,14 +3666,9 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
                  * np.add.reduceat(a, np.arange(len(a)), out=a).
                  */
                 if (descrs[2]->type_num == NPY_OBJECT) {
-                    /*
-                     * Incref before decref to avoid the possibility of
-                     * the reference count being zero temporarily.
-                     */
-                    Py_XINCREF(*(PyObject **)dataptr_copy[1]);
-                    Py_XDECREF(*(PyObject **)dataptr_copy[0]);
-                    *(PyObject **)dataptr_copy[0] =
-                                        *(PyObject **)dataptr_copy[1];
+                    HPy tmp = HPyField_Load(ctx, HPy_NULL, *(HPyField *)dataptr_copy[1]);
+                    HPyField_Store(ctx, HPy_NULL, (HPyField *)dataptr_copy[0], tmp);
+                    HPy_Close(ctx, tmp);
                 }
                 else {
                     memmove(dataptr_copy[0], dataptr_copy[1], itemsize);
