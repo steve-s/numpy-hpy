@@ -1732,6 +1732,7 @@ static HPy array_new_impl(HPyContext *ctx, HPy h_subtype, HPy *args_h,
                 dims.len, dims.ptr, strides.ptr, offset + (char *)buffer.ptr,
                 buffer.flags, HPy_NULL, h_base,
                 0, 1);
+        HPy_Close(ctx, h_base);
         if (HPy_IsNull(h_result)) {
             descr = NULL;
             goto fail;
