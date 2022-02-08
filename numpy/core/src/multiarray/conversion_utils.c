@@ -3,6 +3,7 @@
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include "hpy.h"
 #include <structmember.h>
 
 #include "numpy/arrayobject.h"
@@ -141,6 +142,73 @@ PyArray_IntpConverter(PyObject *obj, PyArray_Dims *seq)
     }
     seq->len = len;
     nd = PyArray_IntpFromIndexSequence(obj, (npy_intp *)seq->ptr, len);
+    if (nd == -1 || nd != len) {
+        npy_free_cache_dim_obj(*seq);
+        seq->ptr = NULL;
+        return NPY_FAIL;
+    }
+    return NPY_SUCCEED;
+}
+
+// HPY TODO: make a NUMPY_API??
+// HPY TODO: turn PyArray_IntpConverter into simple delegate to this,
+// but first sort out METH_FASTCALL args parsing
+NPY_NO_EXPORT int
+HPyArray_IntpConverter(HPyContext *ctx, HPy obj, PyArray_Dims *seq)
+{
+    HPy_ssize_t len;
+    int nd;
+
+    seq->ptr = NULL;
+    seq->len = 0;
+
+    /*
+     * When the deprecation below expires, remove the `if` statement, and
+     * update the comment for PyArray_OptionalIntpConverter.
+     * HPy TODO: using HPy_IsNull, since HPy_NULL is the default working well for HPyArg_ParseKeywords
+     */
+    if (HPy_IsNull(obj) || HPy_Is(ctx, obj, ctx->h_None)) {
+        /* Numpy 1.20, 2020-05-31 */
+        if (DEPRECATE(
+                "Passing None into shape arguments as an alias for () is "
+                "deprecated.") < 0){
+            return NPY_FAIL;
+        }
+        return NPY_SUCCEED;
+    }
+
+    len = HPy_Length(ctx, obj);
+    if (len == -1) {
+        /* Check to see if it is an integer number */
+        if (HPyNumber_Check(ctx, obj)) {
+            /*
+             * After the deprecation the PyNumber_Check could be replaced
+             * by PyIndex_Check.
+             * FIXME 1.9 ?
+             */
+            len = 1;
+        }
+    }
+    if (len < 0) {
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+                "expected sequence object with len >= 0 or a single integer");
+        return NPY_FAIL;
+    }
+    if (len > NPY_MAXDIMS) {
+        // HPY TODO: HPyErr_CFormat
+        HPyErr_SetString(ctx, ctx->h_ValueError, "maximum supported dimension for an ndarray is %d"
+                     ", found %d"/*, NPY_MAXDIMS, len*/);
+        return NPY_FAIL;
+    }
+    if (len > 0) {
+        seq->ptr = npy_alloc_cache_dim(len);
+        if (seq->ptr == NULL) {
+            HPyErr_NoMemory(ctx);
+            return NPY_FAIL;
+        }
+    }
+    seq->len = len;
+    nd = HPyArray_IntpFromIndexSequence(ctx, obj, (npy_intp *)seq->ptr, len);
     if (nd == -1 || nd != len) {
         npy_free_cache_dim_obj(*seq);
         seq->ptr = NULL;
@@ -370,6 +438,57 @@ PyArray_BoolConverter(PyObject *object, npy_bool *val)
 }
 
 static int
+hpy_string_converter_helper(
+    HPyContext *ctx,
+    HPy object,
+    void *out,
+    int (*str_func)(char const*, Py_ssize_t, void*),
+    char const *name,
+    char const *message)
+{
+    /* allow bytes for compatibility */
+    HPy str_object = HPy_NULL;
+    if (HPyBytes_Check(ctx, object)) {
+        str_object = HPyUnicode_FromEncodedObject(ctx, object, NULL, NULL);
+        if (HPy_IsNull(str_object)) {
+            // HPY TODO: HPyErr_Format
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                "%s %s (got %R)"/*, name, message, object*/);
+            return NPY_FAIL;
+        }
+    }
+    else if (HPyUnicode_Check(ctx, object)) {
+        str_object = HPy_Dup(ctx, object);
+    }
+    else {
+        // HPY TODO: HPyErr_Format
+        HPyErr_SetString(ctx, ctx->h_TypeError,
+            "%s must be str, not %s"/*, name, Py_TYPE(object)->tp_name*/);
+        return NPY_FAIL;
+    }
+
+    HPy_ssize_t length;
+    char const *str = HPyUnicode_AsUTF8AndSize(ctx, str_object, &length);
+    if (str == NULL) {
+        HPy_Close(ctx, str_object);
+        return NPY_FAIL;
+    }
+
+    int ret = str_func(str, length, out);
+    HPy_Close(ctx, str_object);
+    if (ret < 0) {
+        /* str_func returns -1 without an exception if the value is wrong */
+        if (!HPyErr_Occurred(ctx)) {
+            // HPY TODO: HPyErr_Format
+            HPyErr_SetString(ctx, ctx->h_ValueError,
+                "%s %s (got %R)"/*, name, message, object*/);
+        }
+        return NPY_FAIL;
+    }
+    return NPY_SUCCEED;
+}
+
+static int
 string_converter_helper(
     PyObject *object,
     void *out,
@@ -377,44 +496,8 @@ string_converter_helper(
     char const *name,
     char const *message)
 {
-    /* allow bytes for compatibility */
-    PyObject *str_object = NULL;
-    if (PyBytes_Check(object)) {
-        str_object = PyUnicode_FromEncodedObject(object, NULL, NULL);
-        if (str_object == NULL) {
-            PyErr_Format(PyExc_ValueError,
-                "%s %s (got %R)", name, message, object);
-            return NPY_FAIL;
-        }
-    }
-    else if (PyUnicode_Check(object)) {
-        str_object = object;
-        Py_INCREF(str_object);
-    }
-    else {
-        PyErr_Format(PyExc_TypeError,
-            "%s must be str, not %s", name, Py_TYPE(object)->tp_name);
-        return NPY_FAIL;
-    }
-
-    Py_ssize_t length;
-    char const *str = PyUnicode_AsUTF8AndSize(str_object, &length);
-    if (str == NULL) {
-        Py_DECREF(str_object);
-        return NPY_FAIL;
-    }
-
-    int ret = str_func(str, length, out);
-    Py_DECREF(str_object);
-    if (ret < 0) {
-        /* str_func returns -1 without an exception if the value is wrong */
-        if (!PyErr_Occurred()) {
-            PyErr_Format(PyExc_ValueError,
-                "%s %s (got %R)", name, message, object);
-        }
-        return NPY_FAIL;
-    }
-    return NPY_SUCCEED;
+    HPyContext *ctx = npy_get_context();
+    return hpy_string_converter_helper(ctx, HPy_FromPyObject(ctx, object), out, str_func, name, message);
 }
 
 static int byteorder_parser(char const *str, Py_ssize_t length, void *data)
@@ -629,6 +712,20 @@ PyArray_OrderConverter(PyObject *object, NPY_ORDER *val)
     }
     return string_converter_helper(
         object, (void *)val, order_parser, "order",
+        "must be one of 'C', 'F', 'A', or 'K'");
+}
+
+// HPY TODO: NUMPY_API?
+NPY_NO_EXPORT int
+HPyArray_OrderConverter(HPyContext *ctx, HPy object, NPY_ORDER *val)
+{
+    /* Leave the desired default from the caller for None or NULL */
+    // HPY TODO: once METH_FASTCALL args parsing is sorted out, reconsider what is the default
+    if (HPy_IsNull(object) || HPy_Is(ctx, object, ctx->h_None)) {
+        return NPY_SUCCEED;
+    }
+    return hpy_string_converter_helper(
+        ctx, object, (void *)val, order_parser, "order",
         "must be one of 'C', 'F', 'A', or 'K'");
 }
 
@@ -1066,6 +1163,64 @@ PyArray_IntpFromIndexSequence(PyObject *seq, npy_intp *vals, npy_intp maxvals)
     }
     return nd;
 }
+
+NPY_NO_EXPORT npy_intp
+HPyArray_IntpFromIndexSequence(HPyContext *ctx, HPy seq, npy_intp *vals, npy_intp maxvals)
+{
+    HPy_ssize_t nd;
+    npy_intp i;
+    HPy op, err;
+
+    /*
+     * Check to see if sequence is a single integer first.
+     * or, can be made into one
+     */
+    nd = HPy_Length(ctx, seq);
+    if (nd == -1) {
+        if (HPyErr_Occurred(ctx)) {
+            HPyErr_Clear(ctx);
+        }
+
+        // HPY TODO: vals[0] = PyArray_PyIntAsIntp(seq);
+        vals[0] = HPyLong_AsUnsignedLong(ctx, seq);
+        if(vals[0] == -1) {
+            int was_error = HPyErr_Occurred(ctx);
+            if (was_error &&
+                    HPyErr_ExceptionMatches(ctx, ctx->h_OverflowError)) {
+                HPyErr_SetString(ctx, ctx->h_ValueError,
+                        "Maximum allowed dimension exceeded");
+            }
+            if(was_error) {
+                return -1;
+            }
+        }
+        nd = 1;
+    }
+    else {
+        for (i = 0; i < PyArray_MIN(nd,maxvals); i++) {
+            op = HPy_GetItem_i(ctx, seq, i);
+            if (HPy_IsNull(op)) {
+                return -1;
+            }
+
+            // HPY TODO: vals[i] = PyArray_PyIntAsIntp(op);
+            vals[i] = HPyLong_AsUnsignedLong(ctx, op);
+            HPy_Close(ctx, op);
+            if(vals[i] == -1) {
+                int was_error = HPyErr_Occurred(ctx);
+                if (was_error && HPyErr_ExceptionMatches(ctx, ctx->h_OverflowError)) {
+                    HPyErr_SetString(ctx, ctx->h_ValueError,
+                            "Maximum allowed dimension exceeded");
+                }
+                if(was_error) {
+                    return -1;
+                }
+            }
+        }
+    }
+    return nd;
+}
+
 
 /*NUMPY_API
  * PyArray_IntpFromSequence

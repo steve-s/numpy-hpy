@@ -2132,36 +2132,55 @@ array_scalar(PyObject *NPY_UNUSED(ignored), PyObject *args, PyObject *kwds)
     return ret;
 }
 
-static PyObject *
-array_zeros(PyObject *NPY_UNUSED(ignored),
-        PyObject *const *args, Py_ssize_t len_args, PyObject *kwnames)
+HPyDef_METH(array_zeros, "zeros", array_zeros_impl, HPyFunc_KEYWORDS)
+static HPy
+array_zeros_impl(HPyContext *ctx, HPy NPY_UNUSED(ignored), HPy *args, HPy_ssize_t nargs, HPy kw)
 {
+    HPy h_shape = HPy_NULL, h_typecode = HPy_NULL;
+    HPy h_order = HPy_NULL, h_like = HPy_NULL;
+    HPyTracker ht;
+
+    // HPY TODO: uses npy_parse_arguments METH_FASTCALL|METH_KEYWORDS
+    if (!HPyArg_ParseKeywords(ctx, &ht, args, nargs, kw, "O|OOO",
+            (const char*[]) {"shape", "dtype", "order", "like", NULL},
+            &h_shape, &h_typecode, &h_order, &h_like)) {
+        goto fail;
+    }
+
+    // HPY TODO: typecode is still PyObject, HPyArray_Zeros still steals the reference, we still have to decref otherwise
     PyArray_Descr *typecode = NULL;
     PyArray_Dims shape = {NULL, 0};
     NPY_ORDER order = NPY_CORDER;
     npy_bool is_f_order = NPY_FALSE;
-    PyArrayObject *ret = NULL;
-    PyObject *like = NULL;
-    NPY_PREPARE_ARGPARSER;
+    HPy ret = HPy_NULL;
 
-    if (npy_parse_arguments("zeros", args, len_args, kwnames,
-            "shape", &PyArray_IntpConverter, &shape,
-            "|dtype", &PyArray_DescrConverter, &typecode,
-            "|order", &PyArray_OrderConverter, &order,
-            "$like", NULL, &like,
-            NULL, NULL, NULL) < 0) {
+    if (HPyArray_IntpConverter(ctx, h_shape, &shape) != NPY_SUCCEED) {
         goto fail;
     }
 
-
-    if (like != NULL) {
-        PyObject *deferred = array_implement_c_array_function_creation(
-                "zeros", like, NULL, NULL, args, len_args, kwnames);
-        if (deferred != Py_NotImplemented) {
-            Py_XDECREF(typecode);
-            npy_free_cache_dim_obj(shape);
-            return deferred;
+    if (!HPy_IsNull(h_typecode)) {
+        // HPY TODO: needs PyArray_Descr porting
+        PyObject* py_typecode = HPy_AsPyObject(ctx, h_typecode);
+        int result = PyArray_DescrConverter(py_typecode, &typecode);
+        Py_DECREF(py_typecode);
+        if (result != NPY_SUCCEED) {
+            goto fail;
         }
+    }
+    if (HPyArray_OrderConverter(ctx, h_order, &order) != NPY_SUCCEED) {
+        goto fail;
+    }
+
+    if (!HPy_IsNull(h_like)) {
+        // HPY TODO: expects the kwnames from METH_FASTCALL|METH_KEYWORDS calling convention
+        HPy_FatalError(ctx, "array_zeros with like != None is not supported in HPy port yet");
+        // PyObject *deferred = array_implement_c_array_function_creation(
+        //         "zeros", like, NULL, NULL, args, len_args, kwnames);
+        // if (deferred != Py_NotImplemented) {
+        //     Py_XDECREF(typecode);
+        //     npy_free_cache_dim_obj(shape);
+        //     return deferred;
+        // }
     }
 
     switch (order) {
@@ -2172,21 +2191,20 @@ array_zeros(PyObject *NPY_UNUSED(ignored),
             is_f_order = NPY_TRUE;
             break;
         default:
-            PyErr_SetString(PyExc_ValueError,
+            HPyErr_SetString(ctx, ctx->h_ValueError,
                             "only 'C' or 'F' order is permitted");
             goto fail;
     }
 
-    ret = (PyArrayObject *)PyArray_Zeros(shape.len, shape.ptr,
-                                        typecode, (int) is_f_order);
+    ret = HPyArray_Zeros(ctx, shape.len, shape.ptr, typecode, (int) is_f_order);
 
     npy_free_cache_dim_obj(shape);
-    return (PyObject *)ret;
+    return ret;
 
 fail:
     Py_XDECREF(typecode);
     npy_free_cache_dim_obj(shape);
-    return (PyObject *)ret;
+    return ret;
 }
 
 static PyObject *
@@ -4314,9 +4332,6 @@ static struct PyMethodDef array_module_methods[] = {
     {"arange",
         (PyCFunction)array_arange,
         METH_FASTCALL | METH_KEYWORDS, NULL},
-    {"zeros",
-        (PyCFunction)array_zeros,
-        METH_FASTCALL | METH_KEYWORDS, NULL},
     {"count_nonzero",
         (PyCFunction)array_count_nonzero,
         METH_VARARGS|METH_KEYWORDS, NULL},
@@ -4700,19 +4715,20 @@ intern_strings(void)
     return 0;
 }
 
-static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT,
-        /* XXX: Unclear if a dotted name is legit in .m_name, but universal
-         * mode requires it.
-         */
-        "numpy.core._multiarray_umath",
-        NULL,
-        -1,
-        array_module_methods,
-        NULL,
-        NULL,
-        NULL,
-        NULL
+static HPyDef *array_module_hpy_methods[] = {
+    &array_zeros,
+    NULL
+};
+
+static HPyModuleDef moduledef = {
+    /* HPY TODO: Unclear if a dotted name is legit in .m_name, but universal
+     * mode requires it.
+     */
+    .name = "numpy.core._multiarray_umath",
+    .doc = NULL,
+    .size = -1,
+    .legacy_methods = array_module_methods,
+    .defines = array_module_hpy_methods
 };
 
 /* Initialization function for the module */
@@ -4722,7 +4738,9 @@ static HPy init__multiarray_umath_impl(HPyContext *ctx) {
     PyObject *c_api;
 
     /* Create the module and add the functions */
-    m = PyModule_Create(&moduledef);
+    HPy h_mod = HPyModule_Create(ctx, &moduledef);
+    m = HPy_AsPyObject(ctx, h_mod);
+    HPy_Close(ctx, h_mod); // HPY TODO: not used for anything else for now...
     if (!m) {
         return HPy_NULL;
     }

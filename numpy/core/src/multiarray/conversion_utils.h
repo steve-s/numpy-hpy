@@ -94,4 +94,13 @@ PyArray_ConvertMultiAxis(PyObject *axis_in, int ndim, npy_bool *out_axis_flags);
  */
 extern NPY_NO_EXPORT int evil_global_disable_warn_O4O8_flag;
 
+NPY_NO_EXPORT int
+HPyArray_IntpConverter(HPyContext *ctx, HPy obj, PyArray_Dims *seq);
+
+NPY_NO_EXPORT npy_intp
+HPyArray_IntpFromIndexSequence(HPyContext *ctx, HPy seq, npy_intp *vals, npy_intp maxvals);
+
+NPY_NO_EXPORT int
+HPyArray_OrderConverter(HPyContext *ctx, HPy object, NPY_ORDER *val);
+
 #endif  /* NUMPY_CORE_SRC_MULTIARRAY_CONVERSION_UTILS_H_ */

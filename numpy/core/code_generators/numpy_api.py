@@ -354,6 +354,9 @@ multiarray_funcs_api = {
     'PyDataMem_SetHandler':                 (304,),
     'PyDataMem_GetHandler':                 (305,),
     # End 1.21 API
+
+    # HPy API:
+    'HPyArray_Zeros':                       (307,),
 }
 
 ufunc_types_api = {

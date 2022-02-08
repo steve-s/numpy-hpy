@@ -63,3 +63,6 @@
 # Version 15 (NumPy 1.22) Configurable memory allocations
 # Version 14 (NumPy 1.23) No change.
 0x0000000f = b8783365b873681cd204be50cdfb448d
+
+# Version 16 (NumPy ????) HPy APIs
+0x00000010 = c913943818bde9154f24f851eac6f2f0

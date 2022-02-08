@@ -2988,32 +2988,48 @@ PyArray_CheckAxis(PyArrayObject *arr, int *axis, int flags)
 NPY_NO_EXPORT PyObject *
 PyArray_Zeros(int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)
 {
-    PyArrayObject *ret;
+    HPyContext *ctx = npy_get_context();
+    HPy_AsPyObject(ctx, HPyArray_Zeros(ctx, nd, dims, type, is_f_order));
+}
+
+/*NUMPY_API
+ * Zeros
+ *
+ * For now, type should be a PyObject.
+ * accepts NULL type
+ */
+NPY_NO_EXPORT HPy
+HPyArray_Zeros(HPyContext *ctx, int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)
+{
+    HPy ret;
 
     if (!type) {
         type = PyArray_DescrFromType(NPY_DEFAULT_TYPE);
     }
 
-    ret = (PyArrayObject *)PyArray_NewFromDescr_int(
-            &PyArray_Type, type,
+    ret = HPyArray_NewFromDescr_int(
+            ctx, HPy_FromPyObject(ctx, (PyObject *)&PyArray_Type), type,
             nd, dims, NULL, NULL,
-            is_f_order, NULL, NULL,
+            is_f_order, HPy_NULL, HPy_NULL,
             1, 0);
 
-    if (ret == NULL) {
-        return NULL;
+    if (HPy_IsNull(ret)) {
+        return HPy_NULL;
     }
 
     /* handle objects */
-    if (PyDataType_REFCHK(PyArray_DESCR(ret))) {
-        if (_zerofill(ret) < 0) {
-            Py_DECREF(ret);
-            return NULL;
+    if (PyDataType_REFCHK(type)) {
+        PyObject *py_ret = HPy_AsPyObject(ctx, ret);
+        int result = _zerofill((PyArrayObject*) py_ret);
+        Py_DECREF(py_ret);
+        if (result < 0) {
+            HPy_Close(ctx, ret);
+            return HPy_NULL;
         }
     }
 
 
-    return (PyObject *)ret;
+    return ret;
 
 }
 
